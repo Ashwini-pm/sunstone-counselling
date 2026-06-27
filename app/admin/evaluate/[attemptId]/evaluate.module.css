@@ -1,0 +1,252 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  font-family: inherit;
+}
+
+.topBar {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.backLink {
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.backLink:hover { color: var(--ink); }
+
+.topInfo { flex: 1; min-width: 0; }
+.topName { font-weight: 800; font-size: 15px; color: var(--ink); display: block; }
+.topMeta { font-size: 12px; color: var(--slate); }
+
+.topBadges { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.flagBadge { background: #fbe7ea; color: var(--red); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.violBadge { background: #fff3cd; color: #856404; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.progressBadge { background: var(--bg); border: 1px solid var(--line); color: var(--slate); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+.stationList {
+  max-width: 1100px;
+  margin: 32px auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stationCard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.stationHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.stationNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--charcoal);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.stationTitle { font-size: 15px; font-weight: 800; color: var(--ink); }
+.stationBlurb { font-size: 13px; color: var(--slate); margin-top: 2px; }
+.doneTag { margin-left: auto; background: #e6f4ea; color: #1e6f3e; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; flex-shrink: 0; }
+
+.stationBody {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+@media (max-width: 800px) {
+  .stationBody { grid-template-columns: 1fr; }
+}
+
+.videoCol {
+  padding: 20px;
+  border-right: 1px solid var(--line);
+}
+
+.videoWrap {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.playerControls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 14px 12px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.75));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seekBar {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+}
+.seekBar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  margin-top: -5px;
+}
+.seekBar::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.playerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.playBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.playBtn svg { width: 22px; height: 22px; }
+
+.timeDisplay {
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+
+.muteBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.muteBtn svg { width: 18px; height: 18px; }
+
+.vidMeta { font-size: 12px; color: var(--slate); margin-top: 8px; }
+.planNotes { margin-top: 12px; }
+.planNotes pre { font-size: 12px; white-space: pre-wrap; color: var(--slate); margin-top: 4px; font-family: inherit; }
+
+.noVideo {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.rubricCol { padding: 20px; }
+.rubricTitle { font-size: 11px; font-weight: 800; color: var(--slate); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+
+.rubricRow { margin-bottom: 16px; }
+.rubricLabel { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.rubricName { font-size: 13px; font-weight: 700; color: var(--ink); }
+.rubricHint { font-size: 11px; color: var(--muted); }
+
+.scoreRow { display: flex; gap: 4px; flex-wrap: wrap; }
+.scoreBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--slate);
+  cursor: pointer;
+  transition: all .1s;
+}
+.scoreBtn:hover { border-color: var(--charcoal); color: var(--ink); }
+.scoreBtnSel { background: var(--charcoal); color: #fff; border-color: var(--charcoal); }
+
+.notesRow { margin-top: 16px; }
+.notes {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  color: var(--ink);
+  background: var(--bg);
+  box-sizing: border-box;
+}
+.notes:focus { outline: none; border-color: var(--charcoal); }
+
+.saveRow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.savedTick { font-size: 13px; color: #1e6f3e; font-weight: 600; }
+.saveBtn {
+  padding: 9px 20px;
+  background: var(--charcoal);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.saveBtn:hover:not(:disabled) { background: var(--ink); }
+.saveBtn:disabled { opacity: .5; cursor: not-allowed; }
