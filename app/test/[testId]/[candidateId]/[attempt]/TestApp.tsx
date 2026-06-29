@@ -19,6 +19,7 @@ interface RecordingState {
   url: string
   durationSec: number
   uploadStatus: UploadStatus
+  uploadProgress?: number
   r2Url?: string
 }
 
@@ -59,6 +60,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const elapsedRef = useRef(0)
+  const presignRef = useRef<{ uploadUrl: string; finalUrl: string } | null>(null)
 
   const step: Step = steps[idx]
   const done = !!recordings[step?.id]
@@ -145,10 +147,18 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   function startRec() {
     if (!stream) return
     chunksRef.current = []
-    const recorder = new MediaRecorder(stream)
+    // pre-fetch presigned URL while candidate is recording
+    presignRef.current = null
+    fetch('/api/upload/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attemptId, stationId: step.id }),
+    }).then(r => r.json()).then(d => { presignRef.current = d })
+
+    const recorder = new MediaRecorder(stream, { videoBitsPerSecond: 400_000, audioBitsPerSecond: 48_000 })
     recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data) }
     recorder.onstop = () => handleRecordingStop()
-    recorder.start(5000) // 5s timeslice for IndexedDB resilience (future)
+    recorder.start(5000)
     recorderRef.current = recorder
     setRecording(true)
     setElapsed(0)
@@ -197,37 +207,44 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     }))
 
     try {
-      // 1. get presigned S3 upload URL
-      const presignRes = await fetch('/api/upload/presign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attemptId, stationId }),
-      })
-      const { uploadUrl, finalUrl } = await presignRes.json()
+      // use pre-fetched presign if ready, otherwise fetch now
+      let presign = presignRef.current
+      if (!presign) {
+        const r = await fetch('/api/upload/presign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attemptId, stationId }),
+        })
+        presign = await r.json()
+      }
+      const { uploadUrl, finalUrl } = presign!
 
-      // 2. upload directly from browser to S3 (no Vercel middleman)
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'video/webm' },
-        body: blob,
+      // upload directly to S3 with progress tracking via XHR
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', uploadUrl)
+        xhr.setRequestHeader('Content-Type', 'video/webm')
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100)
+            setRecordings(prev => ({ ...prev, [stationId]: { ...prev[stationId], uploadProgress: pct } }))
+          }
+        }
+        xhr.onload = () => xhr.status < 300 ? resolve() : reject(new Error(`S3 ${xhr.status}`))
+        xhr.onerror = () => reject(new Error('Network error'))
+        xhr.send(blob)
       })
 
-      // 3. save URL to DB via Vercel (tiny JSON call)
+      // save URL to DB
       await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          attemptId,
-          stationId,
-          s3Url: finalUrl,
-          durationSec,
-          planNotes: planNotes[stationId] || null,
-        }),
+        body: JSON.stringify({ attemptId, stationId, s3Url: finalUrl, durationSec, planNotes: planNotes[stationId] || null }),
       })
 
       setRecordings(prev => ({
         ...prev,
-        [stationId]: { ...prev[stationId], uploadStatus: 'done', r2Url: finalUrl }
+        [stationId]: { ...prev[stationId], uploadStatus: 'done', uploadProgress: 100, r2Url: finalUrl }
       }))
     } catch {
       setRecordings(prev => ({
@@ -425,7 +442,12 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                 <button className={styles.btnGhost} onClick={redo}>Re-record</button>
               )}
               <div style={{ flex: 1 }} />
-              {uploadStatus === 'uploading' && <span className={styles.uploadNote}>Uploading…</span>}
+              {uploadStatus === 'uploading' && (
+                <div className={styles.uploadProgress}>
+                  <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
+                  <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%</span>
+                </div>
+              )}
               {uploadStatus === 'error' && <span className={styles.uploadError}>Upload failed — re-record</span>}
               <button
                 className={styles.btnDark}

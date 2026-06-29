@@ -175,6 +175,8 @@
 
 .camErr { font-size: 13px; color: var(--red); background: #fbe7ea; border-radius: 8px; padding: 10px 12px; }
 .savedNote { font-size: 13px; color: #15794b; background: #e7f6ee; border-radius: 8px; padding: 10px 12px; }
+.uploadProgress { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.uploadProgressBar { height: 4px; background: var(--red); border-radius: 2px; transition: width 0.3s ease; }
 .uploadNote { font-size: 13px; color: var(--slate); }
 .uploadError { font-size: 13px; color: var(--red); font-weight: 600; }
 
