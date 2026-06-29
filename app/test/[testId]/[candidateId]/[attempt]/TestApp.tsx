@@ -24,6 +24,7 @@ interface RecordingState {
 }
 
 function fmt(s: number) {
+  if (!s || isNaN(s)) return '0:00'
   const m = Math.floor(s / 60), x = Math.floor(s % 60)
   return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0')
 }
