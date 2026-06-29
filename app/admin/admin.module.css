@@ -54,7 +54,7 @@
 
 /* Content */
 .content {
-  max-width: 760px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 32px 22px 80px;
 }
@@ -70,6 +70,7 @@
   color: var(--slate);
   margin-bottom: 22px;
   line-height: 1.5;
+  max-width: 720px;
 }
 
 /* Card */
@@ -79,6 +80,7 @@
   border-radius: 14px;
   padding: 24px;
   box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  max-width: 720px;
 }
 
 .stepLabel {
@@ -211,6 +213,91 @@
   color: #3d7a5b;
   margin-top: 10px;
 }
+
+/* Table section */
+.tableSection {
+  margin-top: 36px;
+  max-width: 1100px;
+}
+
+.tabRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.tab {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--slate);
+  transition: all .15s;
+}
+.tab:hover { color: var(--ink); }
+.tabActive { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+.tableActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dateFilters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dateInput {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--card);
+}
+.dateInput:focus { outline: none; border-color: var(--charcoal); }
+
+.dateSep { font-size: 13px; color: var(--slate); }
+
+.csvBtn {
+  padding: 7px 16px;
+  background: var(--charcoal);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.csvBtn:hover { background: var(--ink); }
+
+.emptyRow { text-align: center; color: var(--muted); font-size: 13px; padding: 32px !important; }
+
+.scoreCell { font-weight: 700; }
+.scoreVal { color: var(--ink); }
 
 /* Table */
 .tableWrap {

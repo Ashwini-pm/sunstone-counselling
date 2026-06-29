@@ -393,11 +393,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         <div className={styles.stMain}>
           {/* Brief */}
           <div className={styles.brief}>
-            {step.image && (
-              <div className={styles.scnImg}>
-                <img src={`/images/${step.image}`} alt="Scenario" onError={e => (e.currentTarget.style.display = 'none')} />
-              </div>
-            )}
             <div className={styles.stationKind}>{isTeach ? 'Your topic' : isPlan ? 'Your task' : 'The situation'}</div>
             <div className={styles.stationTopic} dangerouslySetInnerHTML={{ __html: step.topic }} />
             {isPlan && (

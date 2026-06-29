@@ -151,6 +151,31 @@ export default function EvaluatorView(props: Props) {
     return e && s.rubric.every(r => e.scores[r.key])
   }).length
 
+  const displayViolations = Math.min(props.violationCount, 3)
+
+  function stationAvg(stationId: string, rubric: Step['rubric']): number | null {
+    const e = scoreMap[stationId]
+    if (!e) return null
+    const vals = rubric.map(r => e.scores[r.key]).filter(v => v != null)
+    if (vals.length === 0) return null
+    return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
+  }
+
+  function overallAvg(): number | null {
+    const allVals: number[] = []
+    for (const step of props.steps) {
+      const e = scoreMap[step.id]
+      if (!e) continue
+      for (const r of step.rubric) {
+        if (e.scores[r.key] != null) allVals.push(e.scores[r.key])
+      }
+    }
+    if (allVals.length === 0) return null
+    return Math.round((allVals.reduce((a, b) => a + b, 0) / allVals.length) * 10) / 10
+  }
+
+  const overall = overallAvg()
+
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
@@ -161,8 +186,9 @@ export default function EvaluatorView(props: Props) {
         </div>
         <div className={styles.topBadges}>
           {props.isFlagged && <span className={styles.flagBadge}>Flagged</span>}
-          {props.violationCount > 0 && <span className={styles.violBadge}>{props.violationCount} violation{props.violationCount > 1 ? 's' : ''}</span>}
+          {displayViolations > 0 && <span className={styles.violBadge}>{displayViolations} violation{displayViolations > 1 ? 's' : ''}</span>}
           <span className={styles.progressBadge}>{totalScored}/{props.steps.length} scored</span>
+          {overall !== null && <span className={styles.avgBadge}>Avg {overall}/10</span>}
         </div>
       </div>
 
@@ -173,6 +199,7 @@ export default function EvaluatorView(props: Props) {
           const isSaving = saving === step.id
           const isSaved = saved.has(step.id)
           const allScored = step.rubric.every(r => entry.scores[r.key])
+          const sAvg = stationAvg(step.id, step.rubric)
 
           return (
             <div key={step.id} className={styles.stationCard}>
@@ -182,7 +209,11 @@ export default function EvaluatorView(props: Props) {
                   <div className={styles.stationTitle}>{step.title}</div>
                   <div className={styles.stationBlurb}>{step.blurb}</div>
                 </div>
-                {allScored && <span className={styles.doneTag}>Scored</span>}
+                {allScored && (
+                  <span className={styles.doneTag}>
+                    Scored{sAvg !== null ? ` · ${sAvg}/10` : ''}
+                  </span>
+                )}
               </div>
 
               <div className={styles.stationBody}>

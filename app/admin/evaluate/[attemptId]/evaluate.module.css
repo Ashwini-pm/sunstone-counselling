@@ -33,6 +33,7 @@
 .flagBadge { background: #fbe7ea; color: var(--red); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .violBadge { background: #fff3cd; color: #856404; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .progressBadge { background: var(--bg); border: 1px solid var(--line); color: var(--slate); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+.avgBadge { background: #eef2ff; color: #3730a3; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 
 .stationList {
   max-width: 1100px;

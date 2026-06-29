@@ -56,8 +56,46 @@ export async function getRecentTests() {
       attempts ( id, status, attempt_number )
     `)
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(200)
 
   if (error) return []
-  return data
+
+  // fetch scores for all submitted attempts
+  const submittedIds = data.flatMap(t =>
+    (t.attempts as { id: string; status: string }[])
+      .filter(a => a.status === 'submitted')
+      .map(a => a.id)
+  )
+
+  const scoresByAttempt: Record<string, { avg: number; reviewed: boolean }> = {}
+  if (submittedIds.length > 0) {
+    const { data: scores } = await supabase
+      .from('scores')
+      .select('attempt_id, human_score')
+      .in('attempt_id', submittedIds)
+      .not('human_score', 'is', null)
+
+    if (scores) {
+      const grouped: Record<string, number[]> = {}
+      for (const s of scores) {
+        if (!grouped[s.attempt_id]) grouped[s.attempt_id] = []
+        grouped[s.attempt_id].push(s.human_score)
+      }
+      for (const [id, vals] of Object.entries(grouped)) {
+        scoresByAttempt[id] = {
+          avg: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
+          reviewed: true,
+        }
+      }
+    }
+  }
+
+  return data.map(t => ({
+    ...t,
+    attempts: (t.attempts as { id: string; status: string; attempt_number: number }[]).map(a => ({
+      ...a,
+      avgScore: scoresByAttempt[a.id]?.avg ?? null,
+      reviewed: scoresByAttempt[a.id]?.reviewed ?? false,
+    })),
+  }))
 }

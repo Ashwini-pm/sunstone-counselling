@@ -1,8 +1,6 @@
 'use client'
 
-'use client'
-
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -14,12 +12,20 @@ const ROLES = [
   { key: 'marketing', label: 'MBA · Marketing', sub: 'Marketing Management', icon: '📈' },
 ]
 
+type Attempt = {
+  id: string
+  status: string
+  attempt_number: number
+  avgScore: number | null
+  reviewed: boolean
+}
+
 type Test = {
   id: string
   role: string
   created_at: string
   candidates: { id: string; name: string; email: string } | null
-  attempts: { id: string; status: string; attempt_number: number }[]
+  attempts: Attempt[]
 }
 
 export default function AdminDashboard({
@@ -40,6 +46,10 @@ export default function AdminDashboard({
   const [generatedFor, setGeneratedFor] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  const [filterRole, setFilterRole] = useState<'java' | 'marketing'>('java')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -76,11 +86,68 @@ export default function AdminDashboard({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function statusPill(attempts: Test['attempts']) {
+  function statusPill(attempts: Attempt[]) {
     if (!attempts || attempts.length === 0) return <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
     const latest = attempts.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b)
     if (latest.status === 'submitted') return <span className={`${styles.pill} ${styles.green}`}>Submitted</span>
     return <span className={`${styles.pill} ${styles.amber}`}>In progress</span>
+  }
+
+  function getReviewStatus(attempts: Attempt[]) {
+    const submitted = attempts.filter(a => a.status === 'submitted')
+    if (submitted.length === 0) return null
+    const done = submitted.some(a => a.reviewed)
+    return done
+      ? <span className={`${styles.pill} ${styles.green}`}>Done</span>
+      : <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
+  }
+
+  function getAvgScore(attempts: Attempt[]) {
+    const scored = attempts.filter(a => a.avgScore !== null)
+    if (scored.length === 0) return null
+    const best = scored.reduce((a, b) => (b.avgScore! > a.avgScore! ? b : a))
+    return best.avgScore
+  }
+
+  const filteredTests = useMemo(() => {
+    return recentTests.filter(t => {
+      if (t.role !== filterRole) return false
+      const d = new Date(t.created_at)
+      if (dateFrom && d < new Date(dateFrom)) return false
+      if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false
+      return true
+    })
+  }, [recentTests, filterRole, dateFrom, dateTo])
+
+  function downloadCSV() {
+    const rows = [
+      ['Name', 'Email', 'Role', 'Status', 'Score', 'Review Status', 'Attempts', 'Created'],
+      ...filteredTests.map(t => {
+        const submitted = (t.attempts || []).filter(a => a.status === 'submitted')
+        const status = submitted.length > 0 ? 'Submitted' : (t.attempts?.length > 0 ? 'In progress' : 'Pending')
+        const avgScore = getAvgScore(t.attempts || [])
+        const reviewed = submitted.some(a => a.reviewed)
+        const reviewStatus = submitted.length > 0 ? (reviewed ? 'Done' : 'Pending') : ''
+        return [
+          t.candidates?.name || '',
+          t.candidates?.email || '',
+          t.role === 'java' ? 'B.Tech CS · Java' : 'MBA · Marketing',
+          status,
+          avgScore !== null ? String(avgScore) : '',
+          reviewStatus,
+          String(t.attempts?.length || 0),
+          new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        ]
+      }),
+    ]
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `candidates-${filterRole}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -103,7 +170,6 @@ export default function AdminDashboard({
 
         <div className={styles.card}>
           <form onSubmit={handleSubmit}>
-            {/* Step 1: Role */}
             <div className={styles.stepLabel}>1 · Faculty type</div>
             <div className={styles.rolePicker}>
               {ROLES.map(r => (
@@ -123,7 +189,6 @@ export default function AdminDashboard({
               ))}
             </div>
 
-            {/* Step 2: Name */}
             <div className={styles.stepLabel} style={{ marginTop: 20 }}>2 · Candidate name</div>
             <input
               type="text"
@@ -134,7 +199,6 @@ export default function AdminDashboard({
               required
             />
 
-            {/* Step 3: Email */}
             <div className={styles.stepLabel} style={{ marginTop: 16 }}>3 · Candidate email</div>
             <input
               type="email"
@@ -152,7 +216,6 @@ export default function AdminDashboard({
             </button>
           </form>
 
-          {/* Generated link */}
           {generatedLink && (
             <div className={styles.linkBox}>
               <div className={styles.linkBoxLabel}>Test link for {generatedFor}</div>
@@ -167,51 +230,97 @@ export default function AdminDashboard({
           )}
         </div>
 
-        {/* Recent tests */}
-        {recentTests.length > 0 && (
-          <>
-            <h2 className={styles.heading} style={{ marginTop: 36 }}>Recent test links</h2>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
+        {/* Candidates table */}
+        <div className={styles.tableSection}>
+          {/* Role tabs */}
+          <div className={styles.tabRow}>
+            <div className={styles.tabs}>
+              {ROLES.map(r => (
+                <button
+                  key={r.key}
+                  className={`${styles.tab} ${filterRole === r.key ? styles.tabActive : ''}`}
+                  onClick={() => setFilterRole(r.key as 'java' | 'marketing')}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.tableActions}>
+              <div className={styles.dateFilters}>
+                <input
+                  type="date"
+                  className={styles.dateInput}
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  title="From"
+                />
+                <span className={styles.dateSep}>to</span>
+                <input
+                  type="date"
+                  className={styles.dateInput}
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  title="To"
+                />
+              </div>
+              <button className={styles.csvBtn} onClick={downloadCSV}>
+                Download CSV
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Candidate</th>
+                  <th>Status</th>
+                  <th>Score</th>
+                  <th>Review Status</th>
+                  <th>Attempts</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTests.length === 0 ? (
                   <tr>
-                    <th>Candidate</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Attempts</th>
-                    <th>Created</th>
-                    <th></th>
+                    <td colSpan={7} className={styles.emptyRow}>No candidates found</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {recentTests.map(t => (
+                ) : filteredTests.map(t => {
+                  const avgScore = getAvgScore(t.attempts || [])
+                  const reviewStatus = getReviewStatus(t.attempts || [])
+                  return (
                     <tr key={t.id}>
                       <td>
                         <div className={styles.candName}>{t.candidates?.name || '—'}</div>
                         <div className={styles.candEmail}>{t.candidates?.email || ''}</div>
                       </td>
-                      <td>
-                        <span className={`${styles.pill} ${styles.grey}`}>
-                          {t.role === 'java' ? 'B.Tech CS · Java' : 'MBA · Marketing'}
-                        </span>
+                      <td>{statusPill(t.attempts || [])}</td>
+                      <td className={styles.scoreCell}>
+                        {avgScore !== null ? (
+                          <span className={styles.scoreVal}>{avgScore}/10</span>
+                        ) : '—'}
                       </td>
-                      <td>{statusPill(t.attempts)}</td>
+                      <td>{reviewStatus || '—'}</td>
                       <td className={styles.attempts}>{t.attempts?.length || 0}</td>
-                      <td className={styles.date}>{new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className={styles.date}>
+                        {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
                       <td>
-                        {t.attempts?.filter((a: { status: string }) => a.status === 'submitted').map((a: { id: string }) => (
+                        {(t.attempts || []).filter(a => a.status === 'submitted').map(a => (
                           <Link key={a.id} href={`/admin/evaluate/${a.id}`} className={styles.reviewLink}>
                             Review →
                           </Link>
                         ))}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   )
