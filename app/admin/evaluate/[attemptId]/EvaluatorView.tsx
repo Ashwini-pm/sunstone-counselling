@@ -64,7 +64,7 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
 
   return (
     <div className={styles.videoWrap}>
-      <video ref={videoRef} className={styles.video} src={src} preload="metadata" />
+      <video ref={videoRef} className={styles.video} src={src} preload="none" />
       <div className={styles.playerControls}>
         <input
           ref={seekRef}

@@ -351,14 +351,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         <div className={styles.overlay}>
           <div className={styles.violationCard}>
             <div className={styles.violationIcon}>⚠️</div>
-            <h3 className={styles.violationTitle}>Violation detected</h3>
-            <p className={styles.violationMsg}>{violationReason}</p>
-            <p className={styles.violationCount}>
-              {Math.min(violationCount, 3)} of 3 violations recorded.
-              {violationCount >= 3 && ' Your attempt has been flagged for review.'}
-            </p>
+            <h3 className={styles.violationTitle}>Please stay on this window</h3>
+            <p className={styles.violationMsg}>Switching tabs or exiting fullscreen is not allowed during the assessment.</p>
             <button className={styles.gateBtn} style={{ marginTop: 16 }} onClick={reenterFullscreen}>
-              Return to fullscreen
+              Return to assessment
             </button>
           </div>
         </div>
