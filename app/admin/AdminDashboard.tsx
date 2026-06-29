@@ -39,7 +39,7 @@ export default function AdminDashboard({
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
 
-  const [role, setRole] = useState<FacultyRole | null>(null)
+  const [role, setRole] = useState<FacultyRole>('java')
   const [candidateName, setCandidateName] = useState('')
   const [candidateEmail, setCandidateEmail] = useState('')
   const [generatedLink, setGeneratedLink] = useState('')
@@ -47,7 +47,7 @@ export default function AdminDashboard({
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  const [filterRole, setFilterRole] = useState<'java' | 'marketing'>('java')
+  const [activeTab, setActiveTab] = useState<'java' | 'marketing'>('java')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -58,7 +58,6 @@ export default function AdminDashboard({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!role) { setError('Please select a faculty type.'); return }
     setError('')
 
     const formData = new FormData()
@@ -75,7 +74,7 @@ export default function AdminDashboard({
         setGeneratedFor(result.candidateName!)
         setCandidateName('')
         setCandidateEmail('')
-        setRole(null)
+        setRole(activeTab)
       }
     })
   }
@@ -111,13 +110,18 @@ export default function AdminDashboard({
 
   const filteredTests = useMemo(() => {
     return recentTests.filter(t => {
-      if (t.role !== filterRole) return false
+      if (t.role !== activeTab) return false
       const d = new Date(t.created_at)
       if (dateFrom && d < new Date(dateFrom)) return false
       if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false
       return true
     })
-  }, [recentTests, filterRole, dateFrom, dateTo])
+  }, [recentTests, activeTab, dateFrom, dateTo])
+
+  function switchTab(tab: 'java' | 'marketing') {
+    setActiveTab(tab)
+    setRole(tab as FacultyRole)
+  }
 
   function downloadCSV() {
     const rows = [
@@ -145,7 +149,7 @@ export default function AdminDashboard({
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `candidates-${filterRole}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `candidates-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -164,32 +168,26 @@ export default function AdminDashboard({
         <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
       </div>
 
+      {/* Role tabs */}
+      <div className={styles.pageTabs}>
+        {ROLES.map(r => (
+          <button
+            key={r.key}
+            className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
+            onClick={() => switchTab(r.key as 'java' | 'marketing')}
+          >
+            {r.icon} {r.label}
+          </button>
+        ))}
+      </div>
+
       <div className={styles.content}>
         <h2 className={styles.heading}>Create test link</h2>
-        <p className={styles.sub}>Select the faculty type, enter the candidate&apos;s details, and generate a unique test link to share.</p>
+        <p className={styles.sub}>Enter the candidate&apos;s details and generate a unique test link to share.</p>
 
         <div className={styles.card}>
           <form onSubmit={handleSubmit}>
-            <div className={styles.stepLabel}>1 · Faculty type</div>
-            <div className={styles.rolePicker}>
-              {ROLES.map(r => (
-                <div
-                  key={r.key}
-                  className={`${styles.roleCard} ${role === r.key ? styles.roleCardSel : ''}`}
-                  role="radio"
-                  tabIndex={0}
-                  aria-checked={role === r.key}
-                  onClick={() => setRole(r.key as FacultyRole)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setRole(r.key as FacultyRole) }}
-                >
-                  <div className={styles.roleIcon}>{r.icon}</div>
-                  <div className={styles.roleTitle}>{r.label}</div>
-                  <div className={styles.roleSub}>{r.sub}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className={styles.stepLabel} style={{ marginTop: 20 }}>2 · Candidate name</div>
+            <div className={styles.stepLabel}>1 · Candidate name</div>
             <input
               type="text"
               className={styles.input}
@@ -199,7 +197,7 @@ export default function AdminDashboard({
               required
             />
 
-            <div className={styles.stepLabel} style={{ marginTop: 16 }}>3 · Candidate email</div>
+            <div className={styles.stepLabel} style={{ marginTop: 16 }}>2 · Candidate email</div>
             <input
               type="email"
               className={styles.input}
@@ -232,19 +230,7 @@ export default function AdminDashboard({
 
         {/* Candidates table */}
         <div className={styles.tableSection}>
-          {/* Role tabs */}
           <div className={styles.tabRow}>
-            <div className={styles.tabs}>
-              {ROLES.map(r => (
-                <button
-                  key={r.key}
-                  className={`${styles.tab} ${filterRole === r.key ? styles.tabActive : ''}`}
-                  onClick={() => setFilterRole(r.key as 'java' | 'marketing')}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
             <div className={styles.tableActions}>
               <div className={styles.dateFilters}>
                 <input

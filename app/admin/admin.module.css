@@ -52,6 +52,33 @@
 }
 .logoutBtn:hover { background: #2d3347; }
 
+/* Page-level role tabs */
+.pageTabs {
+  display: flex;
+  gap: 0;
+  background: var(--charcoal);
+  padding: 0 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.pageTab {
+  padding: 13px 22px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #9ba3b8;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color .15s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.pageTab:hover { color: #e0e3ed; }
+.pageTabActive { color: #fff; border-bottom-color: var(--red); }
+
 /* Content */
 .content {
   max-width: 1200px;
