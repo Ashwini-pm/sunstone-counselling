@@ -1,6 +1,10 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
+export async function getS3UploadUrl(key: string, contentType: string, expiresIn = 300) {
+  return getSignedUrl(s3, new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType }), { expiresIn })
+}
+
 export const s3 = new S3Client({
   region: process.env.AWS_REGION!,
   credentials: {

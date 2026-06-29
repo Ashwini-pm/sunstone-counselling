@@ -189,31 +189,50 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const url = URL.createObjectURL(blob)
     const durationSec = elapsedRef.current
+    const stationId = step.id
 
     setRecordings(prev => ({
       ...prev,
-      [step.id]: { url, durationSec, uploadStatus: 'uploading' }
+      [stationId]: { url, durationSec, uploadStatus: 'uploading' }
     }))
 
-    // upload to R2
-    const formData = new FormData()
-    formData.append('file', blob, `${step.id}.webm`)
-    formData.append('attemptId', attemptId)
-    formData.append('stationId', step.id)
-    formData.append('durationSec', String(durationSec))
-    if (planNotes[step.id]) formData.append('planNotes', planNotes[step.id])
-
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
+      // 1. get presigned S3 upload URL
+      const presignRes = await fetch('/api/upload/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attemptId, stationId }),
+      })
+      const { uploadUrl, finalUrl } = await presignRes.json()
+
+      // 2. upload directly from browser to S3 (no Vercel middleman)
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'video/webm' },
+        body: blob,
+      })
+
+      // 3. save URL to DB via Vercel (tiny JSON call)
+      await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attemptId,
+          stationId,
+          s3Url: finalUrl,
+          durationSec,
+          planNotes: planNotes[stationId] || null,
+        }),
+      })
+
       setRecordings(prev => ({
         ...prev,
-        [step.id]: { ...prev[step.id], uploadStatus: data.url ? 'done' : 'error', r2Url: data.url }
+        [stationId]: { ...prev[stationId], uploadStatus: 'done', r2Url: finalUrl }
       }))
     } catch {
       setRecordings(prev => ({
         ...prev,
-        [step.id]: { ...prev[step.id], uploadStatus: 'error' }
+        [stationId]: { ...prev[stationId], uploadStatus: 'error' }
       }))
     }
   }
@@ -411,7 +430,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
               <button
                 className={styles.btnDark}
                 onClick={nextStation}
-                disabled={!done || uploadStatus === 'uploading'}
+                disabled={!done}
               >
                 {last ? 'Finish & submit →' : 'Save & next →'}
               </button>
