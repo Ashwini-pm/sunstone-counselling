@@ -12,6 +12,23 @@
   text-align: left; margin: 0 0 24px; padding-left: 20px;
   font-size: 14px; color: var(--slate); line-height: 2;
 }
+.permBtn {
+  width: 100%; padding: 13px; background: var(--red); color: #fff; border: none;
+  border-radius: 9px; font-size: 15px; font-weight: 700; font-family: inherit;
+  cursor: pointer; min-height: 48px; transition: background .15s;
+}
+.permBtn:hover { background: var(--red-d); }
+.camError { font-size: 13px; color: var(--red); font-weight: 600; margin-top: 8px; }
+.camPreview {
+  position: relative; border-radius: 10px; overflow: hidden;
+  margin-bottom: 16px; background: #000;
+}
+.camPreviewVid { width: 100%; display: block; border-radius: 10px; aspect-ratio: 16/9; object-fit: cover; }
+.camReady {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+}
 
 /* Violation modal */
 .violationCard {

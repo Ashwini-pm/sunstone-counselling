@@ -299,9 +299,24 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
             <li>Stay on this window throughout</li>
             <li>Do not refresh the page</li>
           </ul>
-          <button className={styles.gateBtn} onClick={beginAssessment}>
-            Begin assessment →
-          </button>
+
+          {!stream && !camError && (
+            <button className={styles.permBtn} onClick={enableCamera}>
+              Allow camera & microphone →
+            </button>
+          )}
+          {camError && <p className={styles.camError}>{camError}</p>}
+          {stream && (
+            <>
+              <div className={styles.camPreview}>
+                <video ref={videoRef} autoPlay muted playsInline className={styles.camPreviewVid} />
+                <div className={styles.camReady}>Camera ready</div>
+              </div>
+              <button className={styles.gateBtn} onClick={beginAssessment}>
+                Begin assessment →
+              </button>
+            </>
+          )}
         </div>
       </div>
     )
@@ -339,7 +354,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
             <h3 className={styles.violationTitle}>Violation detected</h3>
             <p className={styles.violationMsg}>{violationReason}</p>
             <p className={styles.violationCount}>
-              {violationCount} of 3 violations recorded.
+              {Math.min(violationCount, 3)} of 3 violations recorded.
               {violationCount >= 3 && ' Your attempt has been flagged for review.'}
             </p>
             <button className={styles.gateBtn} style={{ marginTop: 16 }} onClick={reenterFullscreen}>
