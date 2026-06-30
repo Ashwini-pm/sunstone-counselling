@@ -88,10 +88,10 @@ export default function AdminDashboard({
   }
 
   function statusPill(attempts: Attempt[]) {
-    if (!attempts || attempts.length === 0) return <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
+    if (!attempts || attempts.length === 0) return <span className={`${styles.pill} ${styles.grey}`}>PENDING</span>
     const latest = attempts.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b)
-    if (latest.status === 'submitted') return <span className={`${styles.pill} ${styles.green}`}>Submitted</span>
-    return <span className={`${styles.pill} ${styles.amber}`}>In progress</span>
+    if (latest.status === 'submitted') return <span className={`${styles.pill} ${styles.green}`}>SUBMITTED</span>
+    return <span className={`${styles.pill} ${styles.amber}`}>IN PROGRESS</span>
   }
 
   function getReviewStatus(attempts: Attempt[]) {
@@ -99,8 +99,8 @@ export default function AdminDashboard({
     if (submitted.length === 0) return null
     const done = submitted.some(a => a.reviewed)
     return done
-      ? <span className={`${styles.pill} ${styles.green}`}>Done</span>
-      : <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
+      ? <span className={`${styles.pill} ${styles.green}`}>DONE</span>
+      : <span className={`${styles.pill} ${styles.grey}`}>PENDING</span>
   }
 
   function getAvgScore(attempts: Attempt[]) {
@@ -185,8 +185,7 @@ export default function AdminDashboard({
         {/* Create test link */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <div className={styles.heading}>Create assessment link</div>
-            <div className={styles.sub}>Enter the candidate&apos;s details to generate a unique test link to share with them.</div>
+            <div className={styles.heading}><span className={styles.headingIcon}>🔗</span> Create Assessment Link</div>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -237,16 +236,20 @@ export default function AdminDashboard({
         {/* Candidates table */}
         <div className={styles.tableSection}>
           <div className={styles.tabRow}>
-            <div className={styles.sectionHeading}>Candidates</div>
+            <div>
+              <div className={styles.sectionHeading}>Recent Assessments</div>
+              <div className={styles.sectionSub}>Managing candidate evaluations for {activeTab === 'java' ? 'Java Specialization' : 'Marketing'}</div>
+            </div>
             <div className={styles.tableActions}>
               <div className={styles.dateFilters}>
+                <span className={styles.calIcon}>📅</span>
                 <input
                   type="date"
                   className={styles.dateInput}
                   value={dateFrom}
                   onChange={e => setDateFrom(e.target.value)}
                 />
-                <span className={styles.dateSep}>to</span>
+                <span className={styles.dateSep}>—</span>
                 <input
                   type="date"
                   className={styles.dateInput}
@@ -271,7 +274,7 @@ export default function AdminDashboard({
                     <th className={styles.center}>Review Status</th>
                     <th className={styles.center}>Attempts</th>
                     <th>Created</th>
-                    <th className={styles.right}></th>
+                    <th className={styles.right}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -314,11 +317,13 @@ export default function AdminDashboard({
                 </tbody>
               </table>
             </div>
-            {filteredTests.length > 0 && (
-              <div className={styles.tableFooter}>
-                <span className={styles.tableFooterText}>Showing {filteredTests.length} candidate{filteredTests.length !== 1 ? 's' : ''}</span>
+            <div className={styles.tableFooter}>
+              <span className={styles.tableFooterText}>Showing {filteredTests.length} candidate{filteredTests.length !== 1 ? 's' : ''}</span>
+              <div className={styles.paginationBtns}>
+                <button className={styles.pageBtn} disabled>‹</button>
+                <button className={styles.pageBtn}>›</button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

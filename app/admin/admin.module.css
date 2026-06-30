@@ -110,8 +110,7 @@
 /* ── Role tab bar ── */
 .pageTabs {
   background: var(--a-card);
-  border-bottom: 1px solid var(--a-line-solid);
-  opacity: 0.9;
+  border-bottom: 1px solid rgba(198,198,205,0.3);
   padding: 12px 24px;
   position: sticky;
   top: 64px;
@@ -158,12 +157,14 @@
 .heading {
   font-size: 20px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 0;
   color: var(--a-ink);
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
+.headingIcon { font-size: 18px; }
 
 .sub {
   font-size: 14px;
@@ -333,6 +334,13 @@
   font-size: 22px;
   font-weight: 700;
   color: var(--a-ink);
+  line-height: 1.2;
+}
+
+.sectionSub {
+  font-size: 14px;
+  color: var(--a-slate);
+  margin-top: 4px;
 }
 
 .tableActions {
@@ -345,12 +353,14 @@
 .dateFilters {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--a-surface-high);
   border: 1px solid rgba(198,198,205,0.2);
   border-radius: 8px;
   padding: 8px 14px;
 }
+
+.calIcon { font-size: 15px; }
 
 .dateInput {
   background: transparent;
@@ -366,7 +376,7 @@
 .dateSep {
   font-size: 13px;
   color: var(--a-muted);
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
 .csvBtn {
@@ -495,3 +505,22 @@
   border-top: 1px solid rgba(198,198,205,0.1);
 }
 .tableFooterText { font-size: 13px; color: var(--a-slate); }
+
+.paginationBtns { display: flex; gap: 8px; }
+.pageBtn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(198,198,205,0.3);
+  border-radius: 8px;
+  background: var(--a-card);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .15s;
+  font-family: inherit;
+  color: var(--a-ink);
+}
+.pageBtn:hover:not(:disabled) { background: var(--a-surface-high); }
+.pageBtn:disabled { opacity: 0.3; cursor: not-allowed; }
