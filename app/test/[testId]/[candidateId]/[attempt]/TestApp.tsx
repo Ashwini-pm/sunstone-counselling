@@ -29,30 +29,29 @@ function fmt(s: number) {
   return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0')
 }
 
+const SOUNDWAVE_DELAYS = [0.1, 0.3, 0.2, 0.4, 0.15, 0.35, 0.05]
+
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
   const steps = ROLES[role as keyof typeof ROLES]?.steps || []
   const [idx, setIdx] = useState(0)
   const [stage, setStage] = useState<'ready' | 'station' | 'done'>('ready')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
   const [planNotes, setPlanNotes] = useState<Record<string, string>>({})
+  const [planOpen, setPlanOpen] = useState(false)
 
-  // proctoring
   const [violationCount, setViolationCount] = useState(0)
   const [showViolationWarning, setShowViolationWarning] = useState(false)
   const [violationReason, setViolationReason] = useState('')
 
-  // camera + recording
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [recording, setRecording] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [camError, setCamError] = useState('')
 
-  // live doubts
   const [firedQueries, setFiredQueries] = useState<Set<number>>(new Set())
   const [liveQueries, setLiveQueries] = useState<Array<{ who: string; text: string }>>([])
   const [flashQuery, setFlashQuery] = useState<{ who: string; text: string } | null>(null)
-
-  // overlay
   const [overlayMsg, setOverlayMsg] = useState('')
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -66,17 +65,14 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const step: Step = steps[idx]
   const done = !!recordings[step?.id]
 
-  // attach stream to video
   useEffect(() => {
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream
     }
   }, [stream, idx])
 
-  // proctoring: detect tab switch + fullscreen exit
   useEffect(() => {
     if (stage !== 'station') return
-
     async function logViolation(reason: string) {
       setViolationReason(reason)
       setShowViolationWarning(true)
@@ -88,21 +84,16 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       const data = await res.json()
       setViolationCount(data.violationCount)
     }
-
     function onVisibilityChange() {
       if (document.visibilityState === 'hidden') logViolation('You switched tabs or minimised the window.')
     }
     function onFullscreenChange() {
       if (!document.fullscreenElement) logViolation('You exited fullscreen mode.')
     }
-    function onBlur() {
-      logViolation('The assessment window lost focus.')
-    }
-
+    function onBlur() { logViolation('The assessment window lost focus.') }
     document.addEventListener('visibilitychange', onVisibilityChange)
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('blur', onBlur)
-
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange)
       document.removeEventListener('fullscreenchange', onFullscreenChange)
@@ -124,13 +115,14 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     await enterFullscreen()
   }
 
-  // reset per-station state on idx change
   useEffect(() => {
     setRecording(false)
+    setPaused(false)
     setElapsed(0)
     setFiredQueries(new Set())
     setLiveQueries([])
     setFlashQuery(null)
+    setPlanOpen(false)
     if (tickRef.current) clearInterval(tickRef.current)
   }, [idx])
 
@@ -148,7 +140,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   function startRec() {
     if (!stream) return
     chunksRef.current = []
-    // pre-fetch presigned URL while candidate is recording
     presignRef.current = null
     fetch('/api/upload/presign', {
       method: 'POST',
@@ -162,6 +153,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     recorder.start(5000)
     recorderRef.current = recorder
     setRecording(true)
+    setPaused(false)
     setElapsed(0)
     elapsedRef.current = 0
 
@@ -170,8 +162,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       secs++
       elapsedRef.current = secs
       setElapsed(secs)
-
-      // fire live doubts
       if (step.type === 'teach' && step.queries) {
         step.queries.forEach(q => {
           if (secs === q.at && !firedQueries.has(q.at)) {
@@ -183,9 +173,20 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           }
         })
       }
-
       if (secs >= step.durationSec) stopRec()
     }, 1000)
+  }
+
+  function togglePause() {
+    const recorder = recorderRef.current
+    if (!recorder) return
+    if (paused) {
+      recorder.resume()
+      setPaused(false)
+    } else {
+      recorder.pause()
+      setPaused(true)
+    }
   }
 
   function stopRec() {
@@ -194,6 +195,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       recorderRef.current.stop()
     }
     setRecording(false)
+    setPaused(false)
   }
 
   async function handleRecordingStop() {
@@ -208,7 +210,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     }))
 
     try {
-      // use pre-fetched presign if ready, otherwise fetch now
       let presign = presignRef.current
       if (!presign) {
         const r = await fetch('/api/upload/presign', {
@@ -220,7 +221,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       }
       const { uploadUrl, finalUrl } = presign!
 
-      // upload directly to S3 with progress tracking via XHR
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', uploadUrl)
@@ -236,7 +236,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         xhr.send(blob)
       })
 
-      // save URL to DB
       await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -285,6 +284,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     }
   }
 
+  // ── READY ──
   if (stage === 'ready') {
     return (
       <div className={styles.readyPage}>
@@ -292,7 +292,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           <div className={styles.gateLogo}>S</div>
           <h2 className={styles.gateTitle}>Ready to begin?</h2>
           <p className={styles.gateSub}>
-            The assessment will open in <b>fullscreen</b>. Switching tabs or exiting fullscreen will be logged as a violation. 3 violations flag your attempt.
+            The assessment will open in <b>fullscreen</b>. Switching tabs or exiting fullscreen will be logged as a violation.
           </p>
           <ul className={styles.readyList}>
             <li>12 stations · ~40 minutes</li>
@@ -300,10 +300,9 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
             <li>Stay on this window throughout</li>
             <li>Do not refresh the page</li>
           </ul>
-
           {!stream && !camError && (
             <button className={styles.permBtn} onClick={enableCamera}>
-              Allow camera & microphone →
+              Allow camera &amp; microphone →
             </button>
           )}
           {camError && <p className={styles.camError}>{camError}</p>}
@@ -323,13 +322,14 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     )
   }
 
+  // ── DONE ──
   if (stage === 'done') {
     return (
       <div className={styles.donePage}>
         <div className={styles.doneCard}>
           <div className={styles.doneCheck}>✓</div>
           <h2>Assessment submitted</h2>
-          <p>Thank you, {candidateName}. All {steps.length} stations are recorded. Our panel will review your responses and get back to you with the next step.</p>
+          <p>Thank you, {candidateName}. All {steps.length} stations are recorded. Our panel will review your responses and get back to you.</p>
           {attemptNumber === 1 && <p className={styles.doneNote}>Attempt 1 of 2 used.</p>}
         </div>
       </div>
@@ -341,27 +341,27 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const isTeach = step.type === 'teach'
   const isPlan = !!step.notes
   const last = idx === steps.length - 1
-  const left = steps.length - idx - 1
   const rec = recordings[step.id]
   const uploadStatus = rec?.uploadStatus
+  const remaining = Math.max(0, step.durationSec - elapsed)
+  const remainingLow = remaining < 30 && recording
+  const pct = Math.round(((idx + 1) / steps.length) * 100)
 
   return (
     <div className={styles.stationWrap}>
-      {/* Violation warning */}
+      {/* Overlays */}
       {showViolationWarning && (
         <div className={styles.overlay}>
           <div className={styles.violationCard}>
             <div className={styles.violationIcon}>⚠️</div>
-            <h3 className={styles.violationTitle}>Please stay on this window</h3>
-            <p className={styles.violationMsg}>Switching tabs or exiting fullscreen is not allowed during the assessment.</p>
+            <h3 className={styles.violationTitle}>Stay on this window</h3>
+            <p className={styles.violationMsg}>{violationReason} Switching tabs or exiting fullscreen is not allowed. Violation {violationCount} recorded.</p>
             <button className={styles.gateBtn} style={{ marginTop: 16 }} onClick={reenterFullscreen}>
               Return to assessment
             </button>
           </div>
         </div>
       )}
-
-      {/* Overlay */}
       {overlayMsg && (
         <div className={styles.overlay}>
           <div className={styles.ovCard}>
@@ -372,106 +372,187 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       )}
 
       {/* Top nav */}
-      <div className={styles.top}>
-        <div className={styles.logo}>S</div>
-        <div>
-          <div className={styles.topTitle}>Faculty Assessment Center</div>
-          <div className={styles.topTag}>SUNSTONE · ELEVATE</div>
+      <header className={styles.topNav}>
+        <div className={styles.topLeft}>
+          <div className={styles.topLogoMark}>S</div>
+          <span className={styles.topProductName}>Faculty Assessment</span>
         </div>
-        <div className={styles.spacer} />
-        <span className={styles.topName}>{candidateName}</span>
-      </div>
+        <span className={styles.topCenter}>{step.title}</span>
+        <div className={styles.topRight}>
+          <div className={`${styles.timerPill} ${remainingLow ? styles.timerPillLow : ''}`}>
+            <span className={styles.timerIcon}>⏱</span>
+            {recording ? fmt(remaining) : fmt(step.durationSec)}
+          </div>
+        </div>
+      </header>
 
-      <div className={styles.stationContent}>
-        {/* Progress */}
-        <div className={styles.progress}>
-          <div className={styles.pmeta}>Station {idx + 1} of {steps.length}{left > 0 ? ` · ${left} to go` : ' · final station'}</div>
-          <div className={styles.pbar}><div className={styles.pfill} style={{ width: `${Math.round((idx + 1) / steps.length * 100)}%` }} /></div>
-          <p className={styles.blurb}>{step.blurb}</p>
+      {/* Main two-panel content */}
+      <main className={styles.mainContent}>
+        {/* Left: AI Interviewer */}
+        <div className={styles.interviewerPanel}>
+          <div className={styles.avatarCard}>
+            <div className={styles.avatarCircle}>🎓</div>
+            <div className={styles.avatarName}>Priya — AI Interviewer</div>
+            <div className={styles.soundwave}>
+              {SOUNDWAVE_DELAYS.map((delay, i) => (
+                <div key={i} className={styles.swBar} style={{ animationDelay: `${delay}s` }} />
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.questionBox}>
+            <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: step.topic }} />
+          </div>
+
+          {isTeach && (
+            <div className={styles.qFeed}>
+              <div className={styles.qFeedLabel}>Live student doubts</div>
+              {liveQueries.length === 0
+                ? <div className={styles.qEmpty}>Doubts will appear as you teach.</div>
+                : liveQueries.map((q, i) => (
+                  <div key={i} className={styles.qi}><b>{q.who}:</b> {q.text}</div>
+                ))
+              }
+            </div>
+          )}
         </div>
 
-        <div className={styles.stMain}>
-          {/* Brief */}
-          <div className={styles.brief}>
-            <div className={styles.stationKind}>{isTeach ? 'Your topic' : isPlan ? 'Your task' : 'The situation'}</div>
-            <div className={styles.stationTopic} dangerouslySetInnerHTML={{ __html: step.topic }} />
-            {isPlan && (
+        {/* Right: Camera + controls */}
+        <div className={styles.cameraPanel}>
+          {/* Video */}
+          <div className={`${styles.vidWrap} ${recording ? styles.vidWrapRecording : ''}`}>
+            <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
+
+            {!stream && (
+              <div className={styles.vidOff}>
+                <span style={{ fontSize: 40 }}>📷</span>
+                <span>Camera not enabled</span>
+              </div>
+            )}
+
+            {/* Start recording overlay */}
+            {stream && !recording && !rec && (
+              <div className={styles.startOverlay}>
+                <button className={styles.startRecBtn} onClick={startRec}>⏺</button>
+                <span className={styles.startRecLabel}>Click to start recording</span>
+              </div>
+            )}
+
+            {/* Recording overlays */}
+            {recording && (
               <>
-                <label className={styles.planLabel}>Your lesson plan</label>
-                <textarea
-                  className={styles.planArea}
-                  placeholder="Write your lesson plan here…"
-                  value={planNotes[step.id] || ''}
-                  onChange={e => setPlanNotes(prev => ({ ...prev, [step.id]: e.target.value }))}
-                />
+                <div className={styles.recBadge}>
+                  <span className={styles.recDot} />
+                  {paused ? 'PAUSED' : 'RECORDING'}
+                </div>
+                <div className={styles.elapsedBadge}>{fmt(elapsed)}</div>
+                <div className={styles.floatingControls}>
+                  <button className={styles.floatPauseBtn} onClick={togglePause}>
+                    {paused ? '▶' : '⏸'}
+                  </button>
+                  <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
+                </div>
               </>
             )}
-            <div className={styles.metaLine}>
-              {isTeach ? 'Student doubts will appear as you teach.' : isPlan ? 'When done writing, record a short spoken explanation.' : 'Respond as if the student is in front of you.'} · Limit {fmt(step.durationSec)}.
-            </div>
-            {isTeach && (
-              <div className={styles.qFeed}>
-                <div className={styles.qFeedLabel}>Live student doubts</div>
-                {liveQueries.length === 0
-                  ? <div className={styles.qEmpty}>No doubts yet — they'll appear as you teach.</div>
-                  : liveQueries.map((q, i) => <div key={i} className={styles.qi}><b>{q.who}:</b> {q.text}</div>)
-                }
+
+            {/* Recorded state */}
+            {rec && !recording && (
+              <div className={styles.recDoneBadge}>
+                <div className={styles.recDoneCheck}>✓</div>
+                <span className={styles.recDoneLabel}>Recorded · {fmt(rec.durationSec)}</span>
+              </div>
+            )}
+
+            {/* Live doubt flash */}
+            {flashQuery && (
+              <div className={styles.qFlash}>
+                <div className={styles.qWho}>✋ {flashQuery.who} asks</div>
+                <div className={styles.qTx}>{flashQuery.text}</div>
               </div>
             )}
           </div>
 
-          {/* Recorder */}
-          <div className={styles.recSide}>
-            <div className={styles.vidWrap}>
-              <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
-              {!stream && <div className={styles.vidOff}>Camera off — click &quot;Enable camera&quot;.</div>}
-              {recording && <div className={styles.recLamp}><span className={styles.dot} />REC</div>}
-              {recording && <div className={styles.vidTimer}>{fmt(elapsed)} / {fmt(step.durationSec)}</div>}
-              {flashQuery && (
-                <div className={styles.qFlash}>
-                  <div className={styles.qWho}>✋ {flashQuery.who} asks</div>
-                  <div className={styles.qTx}>{flashQuery.text}</div>
-                </div>
-              )}
+          {/* Attempts + delete */}
+          <div className={styles.attemptsRow}>
+            <div className={styles.attemptsLeft}>
+              <span className={styles.attemptsLabel}>Attempts:</span>
+              <div className={styles.attemptDots}>
+                <span className={`${styles.attemptDot} ${rec ? styles.attemptDotFilled : ''}`} />
+                <span className={styles.attemptDot} />
+                <span className={styles.attemptDot} />
+              </div>
             </div>
-
-            <div className={styles.controls}>
-              {!stream && <button className={styles.btnGhost} onClick={enableCamera}>Enable camera</button>}
-              {stream && !rec && (
-                <button
-                  className={recording ? styles.btnDark : styles.btnPrimary}
-                  onClick={recording ? stopRec : startRec}
-                >
-                  {recording ? '⏹ Stop recording' : '⏺ Start recording'}
-                </button>
-              )}
-              {rec && !recording && (
-                <button className={styles.btnGhost} onClick={redo}>Re-record</button>
-              )}
-              <div style={{ flex: 1 }} />
-              {uploadStatus === 'uploading' && (
-                <div className={styles.uploadProgress}>
-                  <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
-                  <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%</span>
-                </div>
-              )}
-              {uploadStatus === 'error' && <span className={styles.uploadError}>Upload failed — re-record</span>}
-              <button
-                className={styles.btnDark}
-                onClick={nextStation}
-                disabled={!done}
-              >
-                {last ? 'Finish & submit →' : 'Save & next →'}
+            {rec && !recording && (
+              <button className={styles.deleteBtn} onClick={redo}>
+                🗑 Delete
               </button>
-            </div>
-
-            {camError && <div className={styles.camErr}>{camError}</div>}
-            {rec && uploadStatus === 'done' && (
-              <div className={styles.savedNote}>✓ Recorded ({fmt(rec.durationSec)}) · saved. Re-record or continue.</div>
             )}
           </div>
+
+          {/* Upload status */}
+          {uploadStatus === 'uploading' && (
+            <div className={styles.uploadProgress}>
+              <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
+              <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%…</span>
+            </div>
+          )}
+          {uploadStatus === 'error' && <div className={styles.uploadError}>Upload failed — delete and re-record</div>}
+          {uploadStatus === 'done' && !recording && (
+            <div className={styles.savedNote}>✓ Recording saved · {fmt(rec.durationSec)}</div>
+          )}
+
+          {/* Camera enable */}
+          {!stream && !camError && (
+            <button className={styles.enableCamBtn} onClick={enableCamera}>
+              Enable camera &amp; microphone
+            </button>
+          )}
+          {camError && <div className={styles.camErr}>{camError}</div>}
+
+          {/* Written plan (plan stations) or optional notes */}
+          {(isPlan || true) && (
+            <div className={styles.planToggle}>
+              <button
+                className={styles.planToggleHeader}
+                onClick={() => setPlanOpen(o => !o)}
+              >
+                <span className={styles.planToggleLabel}>
+                  📝 Written Plan {isPlan ? '' : '(optional)'}
+                </span>
+                <span className={`${styles.planChevron} ${planOpen ? styles.planChevronOpen : ''}`}>▾</span>
+              </button>
+              {planOpen && (
+                <div className={styles.planBody}>
+                  <textarea
+                    className={styles.planArea}
+                    placeholder="Jot down key points before you start…"
+                    value={planNotes[step.id] || ''}
+                    onChange={e => setPlanNotes(prev => ({ ...prev, [step.id]: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
+
+      {/* Bottom bar */}
+      <footer className={styles.bottomBar}>
+        <div className={styles.progressSection}>
+          <div className={styles.progressLabel}>
+            <span className={styles.stepLabel}>Step {idx + 1} of {steps.length}</span>
+            <span className={styles.pctLabel}>{pct}% completed</span>
+          </div>
+          <div className={styles.pbar}>
+            <div className={styles.pfill} style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        <div className={styles.bottomActions}>
+          <button className={styles.nextBtn} onClick={nextStation} disabled={!done}>
+            {last ? 'Finish & submit' : 'Next Station'} →
+          </button>
+        </div>
+      </footer>
     </div>
   )
 }
