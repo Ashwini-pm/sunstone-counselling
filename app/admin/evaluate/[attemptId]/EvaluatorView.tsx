@@ -240,10 +240,8 @@ export default function EvaluatorView(props: Props) {
     <div className={styles.wrap}>
       {/* Top nav */}
       <header className={styles.topNav}>
-        <span className={styles.navLogo}>Faculty Assessment Center</span>
-        <nav className={styles.navLinks}>
-          <Link href="/admin" className={styles.navLink}>← Back to Dashboard</Link>
-        </nav>
+        <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.navLogo} />
+        <Link href="/admin" className={styles.navLink}>← Back to Dashboard</Link>
         <div className={styles.navRight}>
           <div className={styles.navEvaluatorAvatar}>{initials(props.candidateName).slice(0, 2)}</div>
         </div>
