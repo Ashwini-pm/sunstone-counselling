@@ -156,7 +156,6 @@ export default function AdminDashboard({
       {/* Header */}
       <header className={styles.top}>
         <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
-        <div className={styles.spacer} />
         <div className={styles.tabPillGroup}>
           {ROLES.map(r => (
             <button
@@ -168,9 +167,10 @@ export default function AdminDashboard({
             </button>
           ))}
         </div>
-        <div className={styles.spacer} />
-        <span className={styles.adminName}>{adminName}</span>
-        <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
+        <div className={styles.topRight}>
+          <span className={styles.adminName}>{adminName}</span>
+          <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
+        </div>
       </header>
 
       <div className={styles.content}>
