@@ -69,7 +69,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream
     }
-  }, [stream, idx])
+  }, [stream, idx, stage])
 
   useEffect(() => {
     if (stage !== 'station') return
