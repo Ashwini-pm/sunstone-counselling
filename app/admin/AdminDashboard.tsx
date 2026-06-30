@@ -8,8 +8,8 @@ import { createTestLink, type FacultyRole } from './actions'
 import styles from './admin.module.css'
 
 const ROLES = [
-  { key: 'java', label: 'B.Tech CS · Java', sub: 'Programming in Java', icon: '⌨️' },
-  { key: 'marketing', label: 'MBA · Marketing', sub: 'Marketing Management', icon: '📈' },
+  { key: 'java', label: 'B.Tech CS · Java' },
+  { key: 'marketing', label: 'MBA · Marketing' },
 ]
 
 type Attempt = {
@@ -39,6 +39,7 @@ export default function AdminDashboard({
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
 
+  const [activeTab, setActiveTab] = useState<'java' | 'marketing'>('java')
   const [role, setRole] = useState<FacultyRole>('java')
   const [candidateName, setCandidateName] = useState('')
   const [candidateEmail, setCandidateEmail] = useState('')
@@ -46,8 +47,6 @@ export default function AdminDashboard({
   const [generatedFor, setGeneratedFor] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-
-  const [activeTab, setActiveTab] = useState<'java' | 'marketing'>('java')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -56,15 +55,18 @@ export default function AdminDashboard({
     router.push('/login')
   }
 
+  function switchTab(tab: 'java' | 'marketing') {
+    setActiveTab(tab)
+    setRole(tab as FacultyRole)
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-
     const formData = new FormData()
     formData.set('candidateName', candidateName)
     formData.set('candidateEmail', candidateEmail)
     formData.set('role', role)
-
     startTransition(async () => {
       const result = await createTestLink(formData)
       if (result.error) {
@@ -118,11 +120,6 @@ export default function AdminDashboard({
     })
   }, [recentTests, activeTab, dateFrom, dateTo])
 
-  function switchTab(tab: 'java' | 'marketing') {
-    setActiveTab(tab)
-    setRole(tab as FacultyRole)
-  }
-
   function downloadCSV() {
     const rows = [
       ['Name', 'Email', 'Role', 'Status', 'Score', 'Review Status', 'Attempts', 'Created'],
@@ -156,74 +153,83 @@ export default function AdminDashboard({
 
   return (
     <div className={styles.wrap}>
-      {/* Top nav */}
-      <div className={styles.top}>
+      {/* Header */}
+      <header className={styles.top}>
         <div className={styles.logo}>S</div>
-        <div>
-          <div className={styles.topTitle}>Faculty Assessment Center</div>
-          <div className={styles.topTag}>SUNSTONE · ELEVATE</div>
+        <div className={styles.topDivider} />
+        <div className={styles.topText}>
+          <span className={styles.topTitle}>Faculty Assessment Center</span>
+          <span className={styles.topTag}>SUNSTONE · ELEVATE</span>
         </div>
         <div className={styles.spacer} />
         <span className={styles.adminName}>{adminName}</span>
         <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
-      </div>
+      </header>
 
       {/* Role tabs */}
-      <div className={styles.pageTabs}>
-        {ROLES.map(r => (
-          <button
-            key={r.key}
-            className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
-            onClick={() => switchTab(r.key as 'java' | 'marketing')}
-          >
-            {r.icon} {r.label}
-          </button>
-        ))}
-      </div>
+      <nav className={styles.pageTabs}>
+        <div className={styles.tabPillGroup}>
+          {ROLES.map(r => (
+            <button
+              key={r.key}
+              className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
+              onClick={() => switchTab(r.key as 'java' | 'marketing')}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       <div className={styles.content}>
-        <h2 className={styles.heading}>Create test link</h2>
-        <p className={styles.sub}>Enter the candidate&apos;s details and generate a unique test link to share.</p>
-
+        {/* Create test link */}
         <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.heading}>Create assessment link</div>
+            <div className={styles.sub}>Enter the candidate&apos;s details to generate a unique test link to share with them.</div>
+          </div>
+
           <form onSubmit={handleSubmit}>
-            <div className={styles.stepLabel}>1 · Candidate name</div>
-            <input
-              type="text"
-              className={styles.input}
-              placeholder="e.g. Dr. Suresh Iyer"
-              value={candidateName}
-              onChange={e => setCandidateName(e.target.value)}
-              required
-            />
-
-            <div className={styles.stepLabel} style={{ marginTop: 16 }}>2 · Candidate email</div>
-            <input
-              type="email"
-              className={styles.input}
-              placeholder="candidate@example.com"
-              value={candidateEmail}
-              onChange={e => setCandidateEmail(e.target.value)}
-              required
-            />
-
-            {error && <p className={styles.error} role="alert">{error}</p>}
-
-            <button type="submit" className={styles.btn} disabled={isPending} style={{ marginTop: 20 }}>
-              {isPending ? 'Generating…' : 'Generate test link →'}
-            </button>
+            <div className={styles.formRow}>
+              <div className={styles.formField}>
+                <label className={styles.fieldLabel}>Candidate name</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="e.g. Dr. Suresh Iyer"
+                  value={candidateName}
+                  onChange={e => setCandidateName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.fieldLabel}>Candidate email</label>
+                <input
+                  type="email"
+                  className={styles.input}
+                  placeholder="candidate@example.com"
+                  value={candidateEmail}
+                  onChange={e => setCandidateEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className={styles.btn} disabled={isPending}>
+                {isPending ? 'Generating…' : 'Generate test link →'}
+              </button>
+            </div>
+            {error && <p className={styles.error}>{error}</p>}
           </form>
 
           {generatedLink && (
             <div className={styles.linkBox}>
-              <div className={styles.linkBoxLabel}>Test link for {generatedFor}</div>
+              <div className={styles.linkBoxLabel}>✓ Test link for {generatedFor}</div>
               <div className={styles.linkRow}>
                 <code className={styles.linkText}>{generatedLink}</code>
                 <button className={styles.copyBtn} onClick={handleCopy}>
                   {copied ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
-              <p className={styles.linkNote}>Send this link to the candidate. They will be asked to sign in before starting.</p>
+              <p className={styles.linkNote}>Send this link to the candidate. They will be asked to sign in with Google before starting the assessment.</p>
             </div>
           )}
         </div>
@@ -231,6 +237,7 @@ export default function AdminDashboard({
         {/* Candidates table */}
         <div className={styles.tableSection}>
           <div className={styles.tabRow}>
+            <div className={styles.sectionHeading}>Candidates</div>
             <div className={styles.tableActions}>
               <div className={styles.dateFilters}>
                 <input
@@ -238,7 +245,6 @@ export default function AdminDashboard({
                   className={styles.dateInput}
                   value={dateFrom}
                   onChange={e => setDateFrom(e.target.value)}
-                  title="From"
                 />
                 <span className={styles.dateSep}>to</span>
                 <input
@@ -246,65 +252,73 @@ export default function AdminDashboard({
                   className={styles.dateInput}
                   value={dateTo}
                   onChange={e => setDateTo(e.target.value)}
-                  title="To"
                 />
               </div>
               <button className={styles.csvBtn} onClick={downloadCSV}>
-                Download CSV
+                ↓ Download CSV
               </button>
             </div>
           </div>
 
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Candidate</th>
-                  <th>Status</th>
-                  <th>Score</th>
-                  <th>Review Status</th>
-                  <th>Attempts</th>
-                  <th>Created</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTests.length === 0 ? (
+            <div className={styles.tableScroll}>
+              <table className={styles.table}>
+                <thead>
                   <tr>
-                    <td colSpan={7} className={styles.emptyRow}>No candidates found</td>
+                    <th>Candidate</th>
+                    <th className={styles.center}>Status</th>
+                    <th className={styles.center}>Score</th>
+                    <th className={styles.center}>Review Status</th>
+                    <th className={styles.center}>Attempts</th>
+                    <th>Created</th>
+                    <th className={styles.right}></th>
                   </tr>
-                ) : filteredTests.map(t => {
-                  const avgScore = getAvgScore(t.attempts || [])
-                  const reviewStatus = getReviewStatus(t.attempts || [])
-                  return (
-                    <tr key={t.id}>
-                      <td>
-                        <div className={styles.candName}>{t.candidates?.name || '—'}</div>
-                        <div className={styles.candEmail}>{t.candidates?.email || ''}</div>
-                      </td>
-                      <td>{statusPill(t.attempts || [])}</td>
-                      <td className={styles.scoreCell}>
-                        {avgScore !== null ? (
-                          <span className={styles.scoreVal}>{avgScore}/10</span>
-                        ) : '—'}
-                      </td>
-                      <td>{reviewStatus || '—'}</td>
-                      <td className={styles.attempts}>{t.attempts?.length || 0}</td>
-                      <td className={styles.date}>
-                        {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td>
-                        {(t.attempts || []).filter(a => a.status === 'submitted').map(a => (
-                          <Link key={a.id} href={`/admin/evaluate/${a.id}`} className={styles.reviewLink}>
-                            Review →
-                          </Link>
-                        ))}
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredTests.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className={styles.emptyRow}>No candidates found</td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ) : filteredTests.map(t => {
+                    const avgScore = getAvgScore(t.attempts || [])
+                    const reviewStatus = getReviewStatus(t.attempts || [])
+                    return (
+                      <tr key={t.id}>
+                        <td>
+                          <div className={styles.candName}>{t.candidates?.name || '—'}</div>
+                          <div className={styles.candEmail}>{t.candidates?.email || ''}</div>
+                        </td>
+                        <td className={styles.tdCenter}>{statusPill(t.attempts || [])}</td>
+                        <td className={styles.tdCenter}>
+                          {avgScore !== null
+                            ? <span className={styles.scoreVal}>{avgScore}<span className={styles.scoreSub}>/10</span></span>
+                            : <span className={styles.scoreDash}>—</span>}
+                        </td>
+                        <td className={styles.tdCenter}>{reviewStatus || <span className={styles.scoreDash}>—</span>}</td>
+                        <td className={styles.tdCenter}>
+                          <span className={styles.attemptsNum}>{t.attempts?.length || 0}</span>
+                        </td>
+                        <td>
+                          {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className={styles.tdRight}>
+                          {(t.attempts || []).filter(a => a.status === 'submitted').map(a => (
+                            <Link key={a.id} href={`/admin/evaluate/${a.id}`} className={styles.reviewLink}>
+                              Review →
+                            </Link>
+                          ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filteredTests.length > 0 && (
+              <div className={styles.tableFooter}>
+                <span className={styles.tableFooterText}>Showing {filteredTests.length} candidate{filteredTests.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
