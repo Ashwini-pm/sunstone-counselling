@@ -59,6 +59,30 @@
 }
 .navLink:hover { color: var(--e-ink); }
 
+.navBreadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.navBreadcrumbLink {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--e-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.navBreadcrumbLink:hover { color: var(--e-ink); }
+.navBreadcrumbSep {
+  font-size: 14px;
+  color: var(--e-line);
+}
+.navBreadcrumbCurrent {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--e-ink);
+}
+
 .navRight {
   display: flex;
   align-items: center;
@@ -464,6 +488,11 @@
   color: var(--e-ink);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.rubricRequired {
+  color: var(--e-error);
+  font-size: 11px;
 }
 
 .rubricScore {

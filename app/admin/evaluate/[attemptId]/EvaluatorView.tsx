@@ -34,16 +34,6 @@ function initials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function StarRating({ value }: { value: number | null }) {
-  const stars = value !== null ? Math.round(value / 2) : 0
-  return (
-    <div className={styles.stars}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <span key={i} className={`${styles.star} ${i <= stars ? styles.starFilled : styles.starEmpty}`}>★</span>
-      ))}
-    </div>
-  )
-}
 
 function CheckIcon() {
   return (
@@ -200,24 +190,17 @@ export default function EvaluatorView(props: Props) {
     }
   }
 
-  function stationAvg(stationId: string, rubric: Step['rubric']): number | null {
-    const e = scoreMap[stationId]
-    if (!e) return null
-    const vals = rubric.map(r => e.scores[r.key]).filter(v => v != null) as number[]
-    if (vals.length === 0) return null
-    return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
-  }
-
-  function overallAvg(): number | null {
+function overallAvg(): number | null {
+    const allFullyScored = props.steps.every(step => {
+      const e = scoreMap[step.id]
+      return e && step.rubric.every(r => e.scores[r.key])
+    })
+    if (!allFullyScored) return null
     const allVals: number[] = []
     for (const step of props.steps) {
-      const e = scoreMap[step.id]
-      if (!e) continue
-      for (const r of step.rubric) {
-        if (e.scores[r.key] != null) allVals.push(e.scores[r.key])
-      }
+      const e = scoreMap[step.id]!
+      for (const r of step.rubric) allVals.push(e.scores[r.key])
     }
-    if (allVals.length === 0) return null
     return Math.round((allVals.reduce((a, b) => a + b, 0) / allVals.length) * 10) / 10
   }
 
@@ -234,14 +217,17 @@ export default function EvaluatorView(props: Props) {
   const activeEntry = activeStep ? (scoreMap[activeStep.id] || { scores: {}, notes: '' }) : { scores: {}, notes: '' }
   const isSaving = activeStep ? saving === activeStep.id : false
   const isSaved = activeStep ? saved.has(activeStep.id) : false
-  const sAvg = activeStep ? stationAvg(activeStep.id, activeStep.rubric) : null
 
   return (
     <div className={styles.wrap}>
       {/* Top nav */}
       <header className={styles.topNav}>
         <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.navLogo} />
-        <Link href="/admin" className={styles.navLink}>← Back to Dashboard</Link>
+        <nav className={styles.navBreadcrumb}>
+          <Link href="/admin" className={styles.navBreadcrumbLink}>Admin</Link>
+          <span className={styles.navBreadcrumbSep}>&rsaquo;</span>
+          <span className={styles.navBreadcrumbCurrent}>Dashboard</span>
+        </nav>
         <div className={styles.navRight}>
           <div className={styles.navEvaluatorAvatar}>{initials(props.candidateName).slice(0, 2)}</div>
         </div>
@@ -320,10 +306,6 @@ export default function EvaluatorView(props: Props) {
                     <h2 className={styles.stationTitle}>{activeStep.title}</h2>
                     <p className={styles.stationBlurb}>{activeStep.blurb}</p>
                   </div>
-                  <div className={styles.starBlock}>
-                    <span className={styles.starLabel}>Overall Rating</span>
-                    <StarRating value={sAvg} />
-                  </div>
                 </div>
 
                 {/* Video */}
@@ -341,7 +323,7 @@ export default function EvaluatorView(props: Props) {
                     {activeStep.rubric.map(r => (
                       <div key={r.key} className={styles.rubricItem}>
                         <div className={styles.rubricItemHead}>
-                          <span className={styles.rubricName}>{r.name}</span>
+                          <span className={styles.rubricName}>{r.name} <span className={styles.rubricRequired}>*</span></span>
                           <span className={styles.rubricScore}>
                             {activeEntry.scores[r.key] ? `${activeEntry.scores[r.key]}/10` : '--'}
                           </span>

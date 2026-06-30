@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { ROLES } from '@/lib/assessment-data'
 
 export type FacultyRole = 'marketing' | 'java'
 
@@ -67,6 +68,17 @@ export async function getRecentTests() {
       .map(a => a.id)
   )
 
+  // Map attemptId -> role so we can check completion per role
+  const attemptRoleMap: Record<string, string> = {}
+  for (const t of data) {
+    for (const a of (t.attempts as { id: string; status: string }[])) {
+      attemptRoleMap[a.id] = t.role
+    }
+  }
+  const totalRubricForRole: Record<string, number> = Object.fromEntries(
+    Object.entries(ROLES).map(([key, role]) => [key, role.steps.flatMap(s => s.rubric).length])
+  )
+
   const scoresByAttempt: Record<string, { avg: number; reviewed: boolean }> = {}
   if (submittedIds.length > 0) {
     const { data: scores } = await supabase
@@ -82,9 +94,11 @@ export async function getRecentTests() {
         grouped[s.attempt_id].push(s.human_score)
       }
       for (const [id, vals] of Object.entries(grouped)) {
+        const role = attemptRoleMap[id]
+        const totalRubric = totalRubricForRole[role] ?? 0
         scoresByAttempt[id] = {
           avg: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
-          reviewed: true,
+          reviewed: totalRubric > 0 && vals.length >= totalRubric,
         }
       }
     }
