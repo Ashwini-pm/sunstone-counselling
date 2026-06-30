@@ -34,8 +34,7 @@
 
 /* ── Header ── */
 .top {
-  background: var(--a-primary);
-  color: #fff;
+  background: var(--a-card);
   height: 64px;
   padding: 0 24px;
   display: flex;
@@ -44,58 +43,27 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(198,198,205,0.3);
 }
 
-.logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  background: var(--a-brand-red);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 20px;
-  flex: none;
-  color: #fff;
-}
-
-.topDivider {
-  width: 1px;
-  height: 28px;
-  background: rgba(255,255,255,0.1);
-  margin: 0 16px;
-  flex: none;
-}
-
-.topText { display: flex; flex-direction: column; gap: 1px; }
-.topTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-.topTag {
-  font-size: 10px;
-  color: var(--a-on-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
+.sunstoneLogo {
+  height: 20px;
+  width: auto;
+  flex-shrink: 0;
 }
 
 .spacer { flex: 1; }
 
 .adminName {
   font-size: 13px;
-  color: var(--a-on-primary);
+  color: var(--a-slate);
   font-weight: 600;
 }
 
 .logoutBtn {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(198,198,205,0.4);
+  color: var(--a-slate);
   border-radius: 8px;
   padding: 7px 16px;
   font-size: 13px;
@@ -105,17 +73,8 @@
   transition: background 0.15s;
   margin-left: 16px;
 }
-.logoutBtn:hover { background: rgba(255,255,255,0.08); }
+.logoutBtn:hover { background: var(--a-surface-low); }
 
-/* ── Role tab bar ── */
-.pageTabs {
-  background: var(--a-card);
-  border-bottom: 1px solid rgba(198,198,205,0.3);
-  padding: 12px 24px;
-  position: sticky;
-  top: 64px;
-  z-index: 40;
-}
 
 .tabPillGroup {
   display: inline-flex;

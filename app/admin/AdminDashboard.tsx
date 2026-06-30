@@ -155,19 +155,8 @@ export default function AdminDashboard({
     <div className={styles.wrap}>
       {/* Header */}
       <header className={styles.top}>
-        <div className={styles.logo}>S</div>
-        <div className={styles.topDivider} />
-        <div className={styles.topText}>
-          <span className={styles.topTitle}>Faculty Assessment Center</span>
-          <span className={styles.topTag}>SUNSTONE · ELEVATE</span>
-        </div>
+        <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
         <div className={styles.spacer} />
-        <span className={styles.adminName}>{adminName}</span>
-        <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
-      </header>
-
-      {/* Role tabs */}
-      <nav className={styles.pageTabs}>
         <div className={styles.tabPillGroup}>
           {ROLES.map(r => (
             <button
@@ -179,7 +168,10 @@ export default function AdminDashboard({
             </button>
           ))}
         </div>
-      </nav>
+        <div className={styles.spacer} />
+        <span className={styles.adminName}>{adminName}</span>
+        <button className={styles.logoutBtn} onClick={handleLogout}>Sign out</button>
+      </header>
 
       <div className={styles.content}>
         {/* Create test link */}

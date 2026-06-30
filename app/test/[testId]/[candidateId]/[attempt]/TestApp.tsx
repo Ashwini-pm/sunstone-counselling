@@ -31,6 +31,11 @@ function fmt(s: number) {
 
 const SOUNDWAVE_DELAYS = [0.1, 0.3, 0.2, 0.4, 0.15, 0.35, 0.05]
 
+const ROLE_LABELS: Record<string, string> = {
+  java: 'B.Tech CS · Java',
+  marketing: 'MBA · Marketing',
+}
+
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
   const steps = ROLES[role as keyof typeof ROLES]?.steps || []
   const [idx, setIdx] = useState(0)
@@ -66,8 +71,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const done = !!recordings[step?.id]
 
   useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream
+    const v = videoRef.current
+    if (stream && v) {
+      v.srcObject = stream
+      v.play().catch(() => {})
     }
   }, [stream, idx, stage])
 
@@ -374,10 +381,9 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       {/* Top nav */}
       <header className={styles.topNav}>
         <div className={styles.topLeft}>
-          <div className={styles.topLogoMark}>S</div>
-          <span className={styles.topProductName}>Faculty Assessment</span>
+          <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
         </div>
-        <span className={styles.topCenter}>{step.title}</span>
+        <span className={styles.topCenter}>{ROLE_LABELS[role] || role}</span>
         <div className={styles.topRight}>
           <div className={`${styles.timerPill} ${remainingLow ? styles.timerPillLow : ''}`}>
             <span className={styles.timerIcon}>⏱</span>
