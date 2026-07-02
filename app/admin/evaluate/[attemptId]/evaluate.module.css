@@ -645,3 +645,142 @@
 }
 .submitBtn:hover:not(:disabled) { opacity: 0.88; }
 .submitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── REVIEWER SECTION ── */
+.reviewerSection {
+  background: var(--e-white);
+  border: 1px solid var(--e-line);
+  border-radius: 12px;
+  padding: 18px 24px;
+  margin: 0 24px 0;
+}
+
+.reviewerSectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--e-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.inviteForm {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inviteInput {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--e-line);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--e-surface-low);
+}
+.inviteInput:focus { outline: none; border-color: var(--e-secondary); }
+
+.inviteBtn {
+  padding: 8px 18px;
+  background: var(--e-primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.inviteBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.inviteError { font-size: 12px; color: var(--e-error); margin-top: 6px; }
+
+.inviteLinkBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  background: var(--e-surface-low);
+  border: 1px solid var(--e-line);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.inviteLinkText {
+  flex: 1;
+  font-size: 12px;
+  color: var(--e-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inviteCopyBtn {
+  padding: 4px 12px;
+  background: var(--e-secondary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.inviteList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inviteRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-top: 1px solid var(--e-line);
+}
+.inviteRowName { font-weight: 700; color: var(--e-ink); min-width: 100px; }
+.inviteRowEmail { color: var(--e-muted); flex: 1; }
+.inviteRowVerdicts { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.inviteVerdictDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ivd_none { background: var(--e-line); }
+.ivd_yes { background: #15803d; }
+.ivd_no { background: #ba1a1a; }
+.ivd_maybe { background: #f59e0b; }
+
+/* ── REVIEWER VERDICTS PER STATION ── */
+.stationVerdicts {
+  background: var(--e-surface-low);
+  border: 1px solid var(--e-line);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.stationVerdictsLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--e-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.stationVerdictsList { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.verdictChip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.vc_pending { background: var(--e-surface-high); color: var(--e-muted); }
+.vc_yes { background: #dcfce7; color: #15803d; }
+.vc_no { background: #ffdad6; color: #ba1a1a; }
+.vc_maybe { background: #fef3c7; color: #92400e; }

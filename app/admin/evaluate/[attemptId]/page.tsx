@@ -3,6 +3,7 @@ import { ROLES } from '@/lib/assessment-data'
 import { getS3SignedUrl } from '@/lib/s3'
 import { notFound, redirect } from 'next/navigation'
 import EvaluatorView from './EvaluatorView'
+import { getReviewerInvites } from '@/app/admin/actions'
 
 export default async function EvaluatePage({
   params,
@@ -26,12 +27,21 @@ export default async function EvaluatePage({
 
   if (!attempt) notFound()
 
-  const [{ data: candidate }, { data: test }, { data: recordings }, { data: existingScores }] = await Promise.all([
+  const [{ data: candidate }, { data: test }, { data: recordings }, { data: existingScores }, reviewerInvites] = await Promise.all([
     supabase.from('candidates').select('name, email').eq('id', attempt.candidate_id).single(),
     supabase.from('tests').select('role').eq('id', attempt.test_id).single(),
     supabase.from('recordings').select('station_id, r2_url, duration_sec, plan_notes').eq('attempt_id', attemptId),
-    supabase.from('scores').select('station_id, rubric_key, human_score, evaluator_notes').eq('attempt_id', attemptId),
+    supabase.from('scores').select('station_id, rubric_key, human_score, evaluator_notes').eq('attempt_id', attemptId).is('reviewer_invite_id', null),
+    getReviewerInvites(attemptId),
   ])
+
+  // fetch reviewer verdicts
+  const { data: reviewerScores } = await supabase
+    .from('scores')
+    .select('reviewer_invite_id, station_id, verdict')
+    .eq('attempt_id', attemptId)
+    .not('reviewer_invite_id', 'is', null)
+    .not('verdict', 'is', null)
 
   const role = test?.role ? ROLES[test.role as keyof typeof ROLES] : null
   if (!role) notFound()
@@ -59,6 +69,8 @@ export default async function EvaluatePage({
       steps={role.steps}
       recordings={signedRecordings}
       existingScores={existingScores || []}
+      reviewerInvites={reviewerInvites}
+      reviewerScores={reviewerScores || []}
     />
   )
 }

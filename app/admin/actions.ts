@@ -83,22 +83,27 @@ export async function getRecentTests() {
   if (submittedIds.length > 0) {
     const { data: scores } = await supabase
       .from('scores')
-      .select('attempt_id, human_score')
+      .select('attempt_id, station_id, rubric_key, human_score')
       .in('attempt_id', submittedIds)
       .not('human_score', 'is', null)
+      .is('reviewer_invite_id', null)
 
     if (scores) {
-      const grouped: Record<string, number[]> = {}
+      const groupedVals: Record<string, number[]> = {}
+      const groupedKeys: Record<string, Set<string>> = {}
       for (const s of scores) {
-        if (!grouped[s.attempt_id]) grouped[s.attempt_id] = []
-        grouped[s.attempt_id].push(s.human_score)
+        if (!groupedVals[s.attempt_id]) groupedVals[s.attempt_id] = []
+        groupedVals[s.attempt_id].push(s.human_score)
+        if (!groupedKeys[s.attempt_id]) groupedKeys[s.attempt_id] = new Set()
+        groupedKeys[s.attempt_id].add(`${s.station_id}:${s.rubric_key}`)
       }
-      for (const [id, vals] of Object.entries(grouped)) {
+      for (const [id, vals] of Object.entries(groupedVals)) {
         const role = attemptRoleMap[id]
         const totalRubric = totalRubricForRole[role] ?? 0
+        const distinctScored = groupedKeys[id]?.size ?? 0
         scoresByAttempt[id] = {
           avg: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
-          reviewed: totalRubric > 0 && vals.length >= totalRubric,
+          reviewed: totalRubric > 0 && distinctScored >= totalRubric,
         }
       }
     }
@@ -112,4 +117,38 @@ export async function getRecentTests() {
       reviewed: scoresByAttempt[a.id]?.reviewed ?? false,
     })),
   }))
+}
+
+export async function inviteReviewer(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const attemptId   = formData.get('attemptId') as string
+  const reviewerName  = formData.get('reviewerName') as string
+  const reviewerEmail = formData.get('reviewerEmail') as string
+
+  if (!attemptId || !reviewerName || !reviewerEmail) return { error: 'All fields required' }
+
+  const { data: invite, error } = await supabase
+    .from('reviewer_invites')
+    .insert({ attempt_id: attemptId, name: reviewerName, email: reviewerEmail, created_by: user.id })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  const reviewUrl = `${process.env.NEXT_PUBLIC_APP_URL}/review/${invite.id}`
+  revalidatePath(`/admin/evaluate/${attemptId}`)
+  return { reviewUrl, reviewerName }
+}
+
+export async function getReviewerInvites(attemptId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('reviewer_invites')
+    .select('id, name, email, created_at')
+    .eq('attempt_id', attemptId)
+    .order('created_at', { ascending: true })
+  return data || []
 }

@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
 import Link from 'next/link'
 import type { Step } from '@/lib/assessment-data'
+import { inviteReviewer } from '@/app/admin/actions'
 import styles from './evaluate.module.css'
 
 interface Recording { station_id: string; r2_url: string; duration_sec: number; plan_notes: string | null }
 interface ExistingScore { station_id: string; rubric_key: string; human_score: number | null; evaluator_notes: string | null }
+interface ReviewerInvite { id: string; name: string; email: string; created_at: string }
+interface ReviewerScore { reviewer_invite_id: string; station_id: string; verdict: string }
 
 interface Props {
   attemptId: string
@@ -21,6 +24,8 @@ interface Props {
   steps: Step[]
   recordings: Recording[]
   existingScores: ExistingScore[]
+  reviewerInvites: ReviewerInvite[]
+  reviewerScores: ReviewerScore[]
 }
 
 type ScoreMap = Record<string, { scores: Record<string, number>; notes: string }>
@@ -152,6 +157,50 @@ export default function EvaluatorView(props: Props) {
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<Set<string>>(new Set())
 
+  // Reviewer invite state
+  const [invites, setInvites] = useState<ReviewerInvite[]>(props.reviewerInvites)
+  const [reviewerName, setReviewerName] = useState('')
+  const [reviewerEmail, setReviewerEmail] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviteError, setInviteError] = useState('')
+  const [copiedInvite, setCopiedInvite] = useState(false)
+  const [isPendingInvite, startInviteTransition] = useTransition()
+
+  // Build reviewer verdict map: stationId -> { inviteId -> verdict }
+  const reviewerVerdictMap: Record<string, Record<string, string>> = {}
+  for (const s of props.reviewerScores) {
+    if (!reviewerVerdictMap[s.station_id]) reviewerVerdictMap[s.station_id] = {}
+    reviewerVerdictMap[s.station_id][s.reviewer_invite_id] = s.verdict
+  }
+
+  function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    setInviteError('')
+    const formData = new FormData()
+    formData.set('attemptId', props.attemptId)
+    formData.set('reviewerName', reviewerName)
+    formData.set('reviewerEmail', reviewerEmail)
+    startInviteTransition(async () => {
+      const result = await inviteReviewer(formData)
+      if (result.error) { setInviteError(result.error); return }
+      setInviteLink(result.reviewUrl!)
+      setReviewerName('')
+      setReviewerEmail('')
+      setInvites(prev => [...prev, {
+        id: result.reviewUrl!.split('/review/')[1],
+        name: result.reviewerName!,
+        email: reviewerEmail,
+        created_at: new Date().toISOString(),
+      }])
+    })
+  }
+
+  async function copyInvite() {
+    await navigator.clipboard.writeText(inviteLink)
+    setCopiedInvite(true)
+    setTimeout(() => setCopiedInvite(false), 2000)
+  }
+
   function setScore(stationId: string, rubricKey: string, val: number) {
     setScoreMap(prev => ({
       ...prev,
@@ -274,6 +323,62 @@ function overallAvg(): number | null {
             </div>
           </div>
 
+          {/* Reviewer invite section */}
+          <div className={styles.reviewerSection}>
+            <div className={styles.reviewerSectionTitle}>Invite Reviewers</div>
+            <form className={styles.inviteForm} onSubmit={handleInvite}>
+              <input
+                className={styles.inviteInput}
+                placeholder="Reviewer name"
+                value={reviewerName}
+                onChange={e => setReviewerName(e.target.value)}
+                required
+              />
+              <input
+                className={styles.inviteInput}
+                type="email"
+                placeholder="Reviewer email"
+                value={reviewerEmail}
+                onChange={e => setReviewerEmail(e.target.value)}
+                required
+              />
+              <button className={styles.inviteBtn} type="submit" disabled={isPendingInvite}>
+                {isPendingInvite ? 'Creating…' : 'Generate link →'}
+              </button>
+            </form>
+            {inviteError && <div className={styles.inviteError}>{inviteError}</div>}
+            {inviteLink && (
+              <div className={styles.inviteLinkBox}>
+                <code className={styles.inviteLinkText}>{inviteLink}</code>
+                <button className={styles.inviteCopyBtn} onClick={copyInvite}>
+                  {copiedInvite ? '✓ Copied' : 'Copy'}
+                </button>
+              </div>
+            )}
+            {invites.length > 0 && (
+              <div className={styles.inviteList}>
+                {invites.map(inv => (
+                  <div key={inv.id} className={styles.inviteRow}>
+                    <span className={styles.inviteRowName}>{inv.name}</span>
+                    <span className={styles.inviteRowEmail}>{inv.email}</span>
+                    <div className={styles.inviteRowVerdicts}>
+                      {props.steps.map(s => {
+                        const v = reviewerVerdictMap[s.id]?.[inv.id]
+                        return (
+                          <span
+                            key={s.id}
+                            title={`${s.title}: ${v || 'pending'}`}
+                            className={`${styles.inviteVerdictDot} ${v ? styles[`ivd_${v}`] : styles.ivd_none}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Two-panel content */}
           <div className={styles.content}>
             {/* Left sidebar: station list */}
@@ -315,6 +420,23 @@ function overallAvg(): number | null {
                     : <div className={styles.noVideo}>No recording for this station</div>
                   }
                 </div>
+
+                {/* Reviewer verdicts for this station */}
+                {invites.length > 0 && (
+                  <div className={styles.stationVerdicts}>
+                    <div className={styles.stationVerdictsLabel}>Reviewer verdicts</div>
+                    <div className={styles.stationVerdictsList}>
+                      {invites.map(inv => {
+                        const v = reviewerVerdictMap[activeStep.id]?.[inv.id]
+                        return (
+                          <span key={inv.id} className={`${styles.verdictChip} ${v ? styles[`vc_${v}`] : styles.vc_pending}`}>
+                            {inv.name.split(' ')[0]}: {v || 'pending'}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Rubric + Notes */}
                 <div className={styles.rubricArea}>
