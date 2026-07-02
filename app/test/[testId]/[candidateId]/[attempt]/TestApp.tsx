@@ -151,7 +151,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     const currentStep = steps[idx]
     if (!currentStep || !avatarSrc(role, currentStep.id)) {
       setAvatarUrl(null)
-      setAvatarReady(false)
       return
     }
 
