@@ -447,12 +447,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         <div className={styles.interviewerPanel}>
           <div className={styles.avatarCard}>
             {avatarSrc(role, step.id) ? (
-              <>
-                {!avatarReady && (
-                  <div className={styles.avatarLoader}>
-                    <div className={styles.avatarSpinner} />
-                  </div>
-                )}
+              <div className={styles.avatarVideoWrap}>
                 {avatarUrl && (
                   <video
                     key={step.id}
@@ -461,12 +456,16 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                     autoPlay
                     playsInline
                     preload="auto"
-                    style={{ display: avatarReady ? 'block' : 'none' }}
                     onCanPlay={() => setAvatarReady(true)}
                     onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
                   />
                 )}
-              </>
+                {!avatarReady && (
+                  <div className={styles.avatarLoader}>
+                    <div className={styles.avatarSpinner} />
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <div className={styles.avatarCircle}>🎓</div>
