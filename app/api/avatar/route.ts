@@ -26,5 +26,8 @@ export async function GET(req: NextRequest) {
     { expiresIn: 3600 },
   )
 
+  if (req.nextUrl.searchParams.get('json') === '1') {
+    return Response.json({ url })
+  }
   return Response.redirect(url, 302)
 }

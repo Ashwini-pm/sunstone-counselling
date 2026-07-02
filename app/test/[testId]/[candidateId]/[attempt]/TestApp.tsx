@@ -64,6 +64,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [elapsed, setElapsed] = useState(0)
   const [camError, setCamError] = useState('')
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarReady, setAvatarReady] = useState(false)
+  const prefetchedRef = useRef<{ station: string; url: string } | null>(null)
+
   const [firedQueries, setFiredQueries] = useState<Set<number>>(new Set())
   const [liveQueries, setLiveQueries] = useState<Array<{ who: string; text: string }>>([])
   const [flashQuery, setFlashQuery] = useState<{ who: string; text: string } | null>(null)
@@ -142,6 +146,41 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     setPlanOpen(false)
     if (tickRef.current) clearInterval(tickRef.current)
   }, [idx])
+
+  useEffect(() => {
+    if (stage !== 'station') return
+    const currentStep = steps[idx]
+    if (!currentStep || !avatarSrc(role, currentStep.id)) {
+      setAvatarUrl(null)
+      setAvatarReady(false)
+      return
+    }
+
+    setAvatarReady(false)
+
+    // use prefetched URL if available
+    if (prefetchedRef.current?.station === currentStep.id) {
+      setAvatarUrl(prefetchedRef.current.url)
+      prefetchedRef.current = null
+    } else {
+      setAvatarUrl(null)
+      fetch(`/api/avatar?role=${role}&station=${currentStep.id}&json=1`)
+        .then(r => r.json())
+        .then(({ url }: { url: string }) => setAvatarUrl(url))
+        .catch(() => {})
+    }
+
+    // prefetch next station in background
+    const nextStep = steps[idx + 1]
+    if (nextStep && avatarSrc(role, nextStep.id)) {
+      fetch(`/api/avatar?role=${role}&station=${nextStep.id}&json=1`)
+        .then(r => r.json())
+        .then(({ url }: { url: string }) => {
+          prefetchedRef.current = { station: nextStep.id, url }
+        })
+        .catch(() => {})
+    }
+  }, [idx, stage])
 
   async function enableCamera() {
     setCamError('')
@@ -408,14 +447,26 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         <div className={styles.interviewerPanel}>
           <div className={styles.avatarCard}>
             {avatarSrc(role, step.id) ? (
-              <video
-                key={step.id}
-                className={styles.avatarVideo}
-                src={avatarSrc(role, step.id)!}
-                autoPlay
-                playsInline
-                onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
-              />
+              <>
+                {!avatarReady && (
+                  <div className={styles.avatarLoader}>
+                    <div className={styles.avatarSpinner} />
+                  </div>
+                )}
+                {avatarUrl && (
+                  <video
+                    key={step.id}
+                    className={styles.avatarVideo}
+                    src={avatarUrl}
+                    autoPlay
+                    playsInline
+                    preload="auto"
+                    style={{ display: avatarReady ? 'block' : 'none' }}
+                    onCanPlay={() => setAvatarReady(true)}
+                    onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
+                  />
+                )}
+              </>
             ) : (
               <>
                 <div className={styles.avatarCircle}>🎓</div>
