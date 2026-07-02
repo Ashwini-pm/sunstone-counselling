@@ -36,19 +36,14 @@ const ROLE_LABELS: Record<string, string> = {
   marketing: 'MBA · Marketing',
 }
 
-const S3 = 'https://faculty-assessments.s3.ap-southeast-2.amazonaws.com'
-const AVATAR_VIDEOS: Record<string, Record<string, string>> = {
-  java: {
-    intro:     `${S3}/avatars/java-intro.mp4`,
-    teach:     `${S3}/avatars/java-teach.mp4`,
-    twoway:    `${S3}/avatars/java-twoway.mp4`,
-    doubt:     `${S3}/avatars/java-doubt.mp4`,
-    wrong:     `${S3}/avatars/java-wrong.mp4`,
-    difficult: `${S3}/avatars/java-difficult.mp4`,
-    dilemma:   `${S3}/avatars/java-dilemma.mp4`,
-    relevance: `${S3}/avatars/java-relevance.mp4`,
-    silent:    `${S3}/avatars/java-silent.mp4`,
-  },
+const AVATAR_STATIONS: Record<string, string[]> = {
+  java: ['intro','teach','twoway','doubt','wrong','difficult','dilemma','relevance','silent'],
+}
+
+function avatarSrc(role: string, stationId: string): string | null {
+  if (AVATAR_STATIONS[role]?.includes(stationId))
+    return `/api/avatar?role=${role}&station=${stationId}`
+  return null
 }
 
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
@@ -412,11 +407,11 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         {/* Left: AI Interviewer */}
         <div className={styles.interviewerPanel}>
           <div className={styles.avatarCard}>
-            {AVATAR_VIDEOS[role]?.[step.id] ? (
+            {avatarSrc(role, step.id) ? (
               <video
                 key={step.id}
                 className={styles.avatarVideo}
-                src={AVATAR_VIDEOS[role][step.id]}
+                src={avatarSrc(role, step.id)!}
                 autoPlay
                 playsInline
                 onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
