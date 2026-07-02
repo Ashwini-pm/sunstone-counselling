@@ -301,17 +301,12 @@
   background: var(--t-white);
   border: 1px solid var(--t-line);
   border-radius: 16px;
-  padding: 28px 24px 20px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  transition: box-shadow 0.3s;
-}
-
-.avatarCardSpeaking {
-  box-shadow: 0 0 0 3px rgba(0,101,145,0.15), 0 4px 16px rgba(0,101,145,0.1);
 }
 
 .avatarPhotoWrap {
@@ -319,36 +314,6 @@
   width: 140px;
   height: 140px;
   flex-shrink: 0;
-}
-
-.avatarPhotoWrapSpeaking::before {
-  content: '';
-  position: absolute;
-  inset: -5px;
-  border-radius: 50%;
-  background: conic-gradient(
-    var(--t-secondary) 0%,
-    var(--t-secondary-light) 25%,
-    var(--t-secondary) 50%,
-    var(--t-secondary-light) 75%,
-    var(--t-secondary) 100%
-  );
-  animation: speakingRing 2s linear infinite;
-  z-index: 0;
-}
-
-.avatarPhotoWrapSpeaking::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  background: var(--t-white);
-  z-index: 1;
-}
-
-@keyframes speakingRing {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
 }
 
 .avatarPhoto {
@@ -360,8 +325,6 @@
   border: 3px solid var(--t-white);
   box-shadow: 0 4px 16px rgba(0,0,0,0.14);
   display: block;
-  position: relative;
-  z-index: 2;
 }
 
 .avatarOnline {
@@ -373,41 +336,7 @@
   border-radius: 50%;
   background: #22c55e;
   border: 2px solid var(--t-white);
-  z-index: 3;
 }
-
-.avatarControls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.speakingLabel {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--t-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  animation: fadeInOut 1.4s ease-in-out infinite;
-}
-
-@keyframes fadeInOut {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-.muteBtn {
-  background: var(--t-surface-low);
-  border: 1px solid var(--t-line);
-  border-radius: 8px;
-  padding: 4px 8px;
-  font-size: 14px;
-  cursor: pointer;
-  line-height: 1;
-  transition: background 0.15s;
-  flex-shrink: 0;
-}
-.muteBtn:hover { background: var(--t-surface-high); }
 
 .avatarName {
   font-size: 16px;
@@ -425,19 +354,12 @@
 .swBar {
   width: 3px;
   border-radius: 2px;
-  background: var(--t-line);
-  height: 4px;
-  transition: background 0.3s;
-}
-
-.soundwaveActive .swBar {
   background: var(--t-secondary);
   animation: soundwaveAnim 1.2s infinite ease-in-out;
 }
-
 @keyframes soundwaveAnim {
   0%, 100% { height: 4px; }
-  50% { height: 18px; }
+  50% { height: 16px; }
 }
 
 .questionBox {
