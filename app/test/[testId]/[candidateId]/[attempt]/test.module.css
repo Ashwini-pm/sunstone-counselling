@@ -280,15 +280,72 @@
 .mainContent {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
   padding: 80px 40px 96px;
-  min-height: 100vh;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
   box-sizing: border-box;
 }
 
-/* ── LEFT: AI INTERVIEWER ── */
+/* Question at top */
+.questionArea {
+  background: var(--t-white);
+  border: 1px solid var(--t-line);
+  border-radius: 12px;
+  padding: 18px 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* Two equal video tiles */
+.videoRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.videoTile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tileHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tileLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex: 1;
+}
+
+/* Notes at bottom */
+.notesArea {
+  width: 100%;
+}
+
+/* Avatar fallback (no video) */
+.avatarFallback {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #006591 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* ── LEFT: AI INTERVIEWER (legacy, unused) ── */
 .interviewerPanel {
   width: 380px;
   flex-shrink: 0;
@@ -376,7 +433,7 @@
 .avatarName {
   font-size: 16px;
   font-weight: 700;
-  color: var(--t-ink);
+  color: #fff;
 }
 
 .soundwave {
