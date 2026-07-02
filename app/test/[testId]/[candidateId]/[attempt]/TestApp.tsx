@@ -52,7 +52,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [stage, setStage] = useState<'ready' | 'station' | 'done'>('ready')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
   const [planNotes, setPlanNotes] = useState<Record<string, string>>({})
-  const [planOpen, setPlanOpen] = useState(false)
+  const [planOpen, setPlanOpen] = useState(true)
 
   const [violationCount, setViolationCount] = useState(0)
   const [showViolationWarning, setShowViolationWarning] = useState(false)
