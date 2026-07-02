@@ -397,7 +397,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         {/* Left: AI Interviewer */}
         <div className={styles.interviewerPanel}>
           <div className={styles.avatarCard}>
-            <div className={styles.avatarCircle}>🎓</div>
+            <div className={styles.avatarPhotoWrap}>
+              <img src="/priya-avatar.jpeg" alt="Priya" className={styles.avatarPhoto} />
+              <div className={styles.avatarOnline} />
+            </div>
             <div className={styles.avatarName}>Priya — AI Interviewer</div>
             <div className={styles.soundwave}>
               {SOUNDWAVE_DELAYS.map((delay, i) => (
