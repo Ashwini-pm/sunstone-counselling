@@ -127,6 +127,15 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   async function beginAssessment() {
     await enterFullscreen()
+    const firstStep = steps[0]
+    if (firstStep && avatarSrc(role, firstStep.id)) {
+      try {
+        const r = await fetch(`/api/avatar?role=${role}&station=${firstStep.id}&json=1`)
+        const { url } = await r.json()
+        prefetchedRef.current = { station: firstStep.id, url }
+        await preloadVideo(url)
+      } catch { /* fall through */ }
+    }
     setStage('station')
   }
 
