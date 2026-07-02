@@ -59,6 +59,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [flashQuery, setFlashQuery] = useState<{ who: string; text: string } | null>(null)
   const [overlayMsg, setOverlayMsg] = useState('')
 
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [speechMuted, setSpeechMuted] = useState(false)
+  const speechMutedRef = useRef(false)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -77,6 +81,54 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       v.play().catch(() => {})
     }
   }, [stream, idx, stage])
+
+  // Speak the question when station changes
+  useEffect(() => {
+    if (stage !== 'station' || speechMutedRef.current) return
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+
+    window.speechSynthesis.cancel()
+
+    const raw = steps[idx]?.topic || ''
+    const text = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!text) return
+
+    const utter = new SpeechSynthesisUtterance(text)
+    utter.rate = 0.92
+    utter.pitch = 1.05
+
+    // pick a female English voice if available
+    const voices = window.speechSynthesis.getVoices()
+    const female = voices.find(v =>
+      v.lang.startsWith('en') && /female|woman|girl|samantha|karen|moira|tessa|fiona|victoria|allison|ava|susan|zira|jenny|aria/i.test(v.name)
+    ) || voices.find(v => v.lang.startsWith('en'))
+    if (female) utter.voice = female
+
+    utter.onstart = () => setIsSpeaking(true)
+    utter.onend = () => setIsSpeaking(false)
+    utter.onerror = () => setIsSpeaking(false)
+
+    // slight delay so the screen transition settles first
+    const t = setTimeout(() => {
+      if (!speechMutedRef.current) window.speechSynthesis.speak(utter)
+    }, 600)
+
+    return () => {
+      clearTimeout(t)
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+    }
+  }, [idx, stage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleMuteSpeech() {
+    const next = !speechMuted
+    setSpeechMuted(next)
+    speechMutedRef.current = next
+    if (next) {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+    }
+  }
 
   useEffect(() => {
     if (stage !== 'station') return
@@ -146,6 +198,8 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   function startRec() {
     if (!stream) return
+    window.speechSynthesis?.cancel()
+    setIsSpeaking(false)
     chunksRef.current = []
     presignRef.current = null
     fetch('/api/upload/presign', {
@@ -396,17 +450,27 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       <main className={styles.mainContent}>
         {/* Left: AI Interviewer */}
         <div className={styles.interviewerPanel}>
-          <div className={styles.avatarCard}>
-            <div className={styles.avatarPhotoWrap}>
+          <div className={`${styles.avatarCard} ${isSpeaking ? styles.avatarCardSpeaking : ''}`}>
+            <div className={`${styles.avatarPhotoWrap} ${isSpeaking ? styles.avatarPhotoWrapSpeaking : ''}`}>
               <img src="/priya-avatar.jpeg" alt="Priya" className={styles.avatarPhoto} />
               <div className={styles.avatarOnline} />
             </div>
             <div className={styles.avatarName}>Priya — AI Interviewer</div>
-            <div className={styles.soundwave}>
-              {SOUNDWAVE_DELAYS.map((delay, i) => (
-                <div key={i} className={styles.swBar} style={{ animationDelay: `${delay}s` }} />
-              ))}
+            <div className={styles.avatarControls}>
+              <div className={`${styles.soundwave} ${isSpeaking ? styles.soundwaveActive : ''}`}>
+                {SOUNDWAVE_DELAYS.map((delay, i) => (
+                  <div key={i} className={styles.swBar} style={{ animationDelay: `${delay}s` }} />
+                ))}
+              </div>
+              <button
+                className={styles.muteBtn}
+                onClick={toggleMuteSpeech}
+                title={speechMuted ? 'Unmute Priya' : 'Mute Priya'}
+              >
+                {speechMuted ? '🔇' : '🔊'}
+              </button>
             </div>
+            {isSpeaking && <div className={styles.speakingLabel}>Speaking…</div>}
           </div>
 
           <div className={styles.questionBox}>
