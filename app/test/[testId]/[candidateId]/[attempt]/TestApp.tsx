@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ROLES, type Step } from '@/lib/assessment-data'
 import styles from './test.module.css'
 
@@ -65,7 +65,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [camError, setCamError] = useState('')
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [avatarReady, setAvatarReady] = useState(false)
   const prefetchedRef = useRef<{ station: string; url: string } | null>(null)
 
   const [firedQueries, setFiredQueries] = useState<Set<number>>(new Set())
@@ -155,8 +154,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       setAvatarReady(false)
       return
     }
-
-    setAvatarReady(false)
 
     // use prefetched URL if available
     if (prefetchedRef.current?.station === currentStep.id) {
@@ -318,25 +315,53 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     })
   }
 
-  const transition = useCallback((msg: string, cb: () => void) => {
-    setOverlayMsg(msg)
-    setTimeout(() => { cb(); setOverlayMsg('') }, 1100)
-  }, [])
+  async function preloadVideo(url: string): Promise<void> {
+    return new Promise(resolve => {
+      const vid = document.createElement('video')
+      vid.preload = 'auto'
+      vid.src = url
+      const done = () => { vid.src = ''; resolve() }
+      vid.addEventListener('canplay', done, { once: true })
+      vid.addEventListener('error', done, { once: true })
+      setTimeout(done, 6000)
+      vid.load()
+    })
+  }
 
   async function nextStation() {
     if (recording) stopRec()
     if (idx < steps.length - 1) {
-      transition('Saving response…', () => setIdx(i => i + 1))
+      setOverlayMsg('Saving response…')
+      const nextStep = steps[idx + 1]
+      if (avatarSrc(role, nextStep.id)) {
+        let url: string | null = null
+        if (prefetchedRef.current?.station === nextStep.id) {
+          url = prefetchedRef.current.url
+          prefetchedRef.current = null
+        } else {
+          try {
+            const r = await fetch(`/api/avatar?role=${role}&station=${nextStep.id}&json=1`)
+            const data = await r.json()
+            url = data.url
+          } catch { /* fall through */ }
+        }
+        if (url) {
+          await preloadVideo(url)
+          prefetchedRef.current = { station: nextStep.id, url }
+        }
+      }
+      setIdx(i => i + 1)
+      setOverlayMsg('')
     } else {
-      transition('Submitting assessment…', async () => {
-        await fetch('/api/attempt/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attemptId }),
-        })
-        if (stream) stream.getTracks().forEach(t => t.stop())
-        setStage('done')
+      setOverlayMsg('Submitting assessment…')
+      await fetch('/api/attempt/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attemptId }),
       })
+      if (stream) stream.getTracks().forEach(t => t.stop())
+      setOverlayMsg('')
+      setStage('done')
     }
   }
 
@@ -456,14 +481,8 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                     autoPlay
                     playsInline
                     preload="auto"
-                    onCanPlay={() => setAvatarReady(true)}
                     onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
                   />
-                )}
-                {!avatarReady && (
-                  <div className={styles.avatarLoader}>
-                    <div className={styles.avatarSpinner} />
-                  </div>
                 )}
               </div>
             ) : (
