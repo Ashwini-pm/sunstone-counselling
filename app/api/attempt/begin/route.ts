@@ -20,11 +20,18 @@ function shuffle<T>(arr: T[]): T[] {
   return arr
 }
 
+// Map legacy role keys to new question bank keys
+const ROLE_MAP: Record<string, string> = {
+  java: 'tech',
+  marketing: 'management',
+}
+
 export async function POST(req: Request) {
-  const { attemptId, role } = await req.json()
-  if (!attemptId || !role) {
+  const { attemptId, role: rawRole } = await req.json()
+  if (!attemptId || !rawRole) {
     return NextResponse.json({ error: 'missing attemptId or role' }, { status: 400 })
   }
+  const role = ROLE_MAP[rawRole] ?? rawRole
 
   const supabase = await createClient()
 
