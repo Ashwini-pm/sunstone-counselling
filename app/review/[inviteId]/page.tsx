@@ -12,6 +12,8 @@ export default async function ReviewPage({
   const { inviteId } = await params
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { data: invite } = await supabase
     .from('reviewer_invites')
     .select('id, name, email, attempt_id')
@@ -19,6 +21,24 @@ export default async function ReviewPage({
     .single()
 
   if (!invite) notFound()
+
+  if (user?.email?.toLowerCase() !== invite.email.toLowerCase()) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui', background: '#f5f5f5' }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '40px 48px', maxWidth: 420, textAlign: 'center', boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>⚠️</div>
+          <h2 style={{ margin: '0 0 8px', fontSize: 18 }}>Wrong account</h2>
+          <p style={{ color: '#666', margin: '0 0 24px', lineHeight: 1.5 }}>
+            This review link was sent to <strong>{invite.email}</strong>.<br />
+            You are signed in as <strong>{user?.email}</strong>.
+          </p>
+          <a href={`/login?next=/review/${inviteId}`} style={{ display: 'inline-block', background: '#111', color: '#fff', borderRadius: 8, padding: '10px 24px', textDecoration: 'none', fontSize: 14 }}>
+            Sign in with the correct account
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   const [
     { data: attempt },

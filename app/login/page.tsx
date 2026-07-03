@@ -12,11 +12,14 @@ export default function LoginPage() {
   async function handleGoogleLogin() {
     setError('')
     setLoading(true)
+    const params = new URLSearchParams(window.location.search)
+    const next = params.get('next') || '/'
+    const isReviewerFlow = next.startsWith('/review/')
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: { hd: 'sunstone.in' },
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        queryParams: isReviewerFlow ? {} : { hd: 'sunstone.in' },
       },
     })
     if (error) {
@@ -48,7 +51,11 @@ export default function LoginPage() {
           )}
         </button>
 
-        <p className={styles.hint}>Only @sunstone.in accounts can access the admin panel.</p>
+        <p className={styles.hint}>
+          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('next')?.startsWith('/review/')
+            ? 'Sign in with the Google account this review link was sent to.'
+            : 'Only @sunstone.in accounts can access the admin panel.'}
+        </p>
       </div>
     </div>
   )
