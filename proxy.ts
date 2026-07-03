@@ -24,6 +24,13 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
+  // reviewer route: must be signed in
+  if (!user && pathname.startsWith('/review/')) {
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('next', pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
   // not logged in → redirect to login (except for test routes and login itself)
   if (!user && pathname.startsWith('/admin')) {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -59,5 +66,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/login'],
+  matcher: ['/admin/:path*', '/login', '/review/:path*'],
 }
