@@ -35,13 +35,12 @@ export default async function EvaluatePage({
     getReviewerInvites(attemptId),
   ])
 
-  // fetch reviewer verdicts
+  // fetch all reviewer scores (one row per station: verdict + rubric scores as JSON in evaluator_notes)
   const { data: reviewerScores } = await supabase
     .from('scores')
-    .select('reviewer_invite_id, station_id, verdict')
+    .select('reviewer_invite_id, station_id, evaluator_notes, verdict')
     .eq('attempt_id', attemptId)
     .not('reviewer_invite_id', 'is', null)
-    .not('verdict', 'is', null)
 
   const role = test?.role ? ROLES[test.role as keyof typeof ROLES] : null
   if (!role) notFound()

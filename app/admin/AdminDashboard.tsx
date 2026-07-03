@@ -18,6 +18,8 @@ type Attempt = {
   attempt_number: number
   avgScore: number | null
   reviewed: boolean
+  totalInvites: number
+  verdictCounts: { yes: number; no: number; maybe: number }
 }
 
 type Test = {
@@ -97,17 +99,17 @@ export default function AdminDashboard({
   function getReviewStatus(attempts: Attempt[]) {
     const submitted = attempts.filter(a => a.status === 'submitted')
     if (submitted.length === 0) return null
-    const done = submitted.some(a => a.reviewed)
-    return done
+    const latest = submitted.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b)
+    if (latest.totalInvites === 0) return <span className={`${styles.pill} ${styles.grey}`}>NO REVIEWERS</span>
+    return latest.reviewed
       ? <span className={`${styles.pill} ${styles.green}`}>DONE</span>
       : <span className={`${styles.pill} ${styles.grey}`}>PENDING</span>
   }
 
-  function getAvgScore(attempts: Attempt[]) {
-    const scored = attempts.filter(a => a.avgScore !== null)
-    if (scored.length === 0) return null
-    const best = scored.reduce((a, b) => (b.avgScore! > a.avgScore! ? b : a))
-    return best.avgScore
+  function getLatestSubmitted(attempts: Attempt[]): Attempt | null {
+    const submitted = attempts.filter(a => a.status === 'submitted')
+    if (submitted.length === 0) return null
+    return submitted.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b)
   }
 
   const filteredTests = useMemo(() => {
@@ -122,19 +124,22 @@ export default function AdminDashboard({
 
   function downloadCSV() {
     const rows = [
-      ['Name', 'Email', 'Role', 'Status', 'Score', 'Review Status', 'Attempts', 'Created'],
+      ['Name', 'Email', 'Role', 'Status', 'Score', 'Verdict', 'Review Status', 'Attempts', 'Created'],
       ...filteredTests.map(t => {
         const submitted = (t.attempts || []).filter(a => a.status === 'submitted')
         const status = submitted.length > 0 ? 'Submitted' : (t.attempts?.length > 0 ? 'In progress' : 'Pending')
-        const avgScore = getAvgScore(t.attempts || [])
-        const reviewed = submitted.some(a => a.reviewed)
-        const reviewStatus = submitted.length > 0 ? (reviewed ? 'Done' : 'Pending') : ''
+        const latest = submitted.length > 0 ? submitted.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b) : null
+        const score = latest?.reviewed && latest?.avgScore !== null ? String(latest.avgScore) : (latest?.totalInvites > 0 ? 'Pending' : '')
+        const reviewStatus = latest ? (latest.reviewed ? 'Done' : 'Pending') : ''
+        const vc = latest?.verdictCounts
+        const verdict = vc ? `✓${vc.yes} ✗${vc.no} ~${vc.maybe}` : ''
         return [
           t.candidates?.name || '',
           t.candidates?.email || '',
           t.role === 'java' ? 'B.Tech CS · Java' : 'MBA · Marketing',
           status,
-          avgScore !== null ? String(avgScore) : '',
+          score,
+          verdict,
           reviewStatus,
           String(t.attempts?.length || 0),
           new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -263,6 +268,7 @@ export default function AdminDashboard({
                     <th>Candidate</th>
                     <th className={styles.center}>Status</th>
                     <th className={styles.center}>Score</th>
+                    <th className={styles.center}>Verdict</th>
                     <th className={styles.center}>Review Status</th>
                     <th className={styles.center}>Attempts</th>
                     <th>Created</th>
@@ -272,10 +278,10 @@ export default function AdminDashboard({
                 <tbody>
                   {filteredTests.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className={styles.emptyRow}>No candidates found</td>
+                      <td colSpan={8} className={styles.emptyRow}>No candidates found</td>
                     </tr>
                   ) : filteredTests.map(t => {
-                    const avgScore = getAvgScore(t.attempts || [])
+                    const latest = getLatestSubmitted(t.attempts || [])
                     const reviewStatus = getReviewStatus(t.attempts || [])
                     return (
                       <tr key={t.id}>
@@ -285,8 +291,17 @@ export default function AdminDashboard({
                         </td>
                         <td className={styles.tdCenter}>{statusPill(t.attempts || [])}</td>
                         <td className={styles.tdCenter}>
-                          {avgScore !== null
-                            ? <span className={styles.scoreVal}>{avgScore}<span className={styles.scoreSub}>/10</span></span>
+                          {latest?.reviewed && latest?.avgScore !== null
+                            ? <span className={styles.scoreVal}>{latest.avgScore}<span className={styles.scoreSub}>/10</span></span>
+                            : latest?.totalInvites > 0
+                              ? <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
+                              : <span className={styles.scoreDash}>—</span>}
+                        </td>
+                        <td className={styles.tdCenter}>
+                          {latest && latest.totalInvites > 0
+                            ? <span className={styles.verdictText}>
+                                Yes: {latest.verdictCounts.yes}, No: {latest.verdictCounts.no}, Maybe: {latest.verdictCounts.maybe}
+                              </span>
                             : <span className={styles.scoreDash}>—</span>}
                         </td>
                         <td className={styles.tdCenter}>{reviewStatus || <span className={styles.scoreDash}>—</span>}</td>

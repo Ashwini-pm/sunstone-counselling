@@ -61,49 +61,53 @@ export async function getRecentTests() {
 
   if (error) return []
 
-  // fetch scores for all submitted attempts
   const submittedIds = data.flatMap(t =>
     (t.attempts as { id: string; status: string }[])
       .filter(a => a.status === 'submitted')
       .map(a => a.id)
   )
 
-  // Map attemptId -> role so we can check completion per role
-  const attemptRoleMap: Record<string, string> = {}
-  for (const t of data) {
-    for (const a of (t.attempts as { id: string; status: string }[])) {
-      attemptRoleMap[a.id] = t.role
-    }
-  }
-  const totalRubricForRole: Record<string, number> = Object.fromEntries(
-    Object.entries(ROLES).map(([key, role]) => [key, role.steps.flatMap(s => s.rubric).length])
-  )
+  // reviewer invite counts per attempt
+  const inviteCountByAttempt: Record<string, number> = {}
+  // reviewer overall verdicts: attemptId -> { inviteId -> verdict }
+  const reviewerVerdicts: Record<string, Record<string, string>> = {}
+  // reviewer rubric scores: attemptId -> inviteId -> flat number[]
+  const reviewerScoreVals: Record<string, Record<string, number[]>> = {}
 
-  const scoresByAttempt: Record<string, { avg: number; reviewed: boolean }> = {}
   if (submittedIds.length > 0) {
-    const { data: scores } = await supabase
-      .from('scores')
-      .select('attempt_id, station_id, rubric_key, human_score')
-      .in('attempt_id', submittedIds)
-      .not('human_score', 'is', null)
-      .is('reviewer_invite_id', null)
+    const [{ data: invites }, { data: scores }] = await Promise.all([
+      supabase
+        .from('reviewer_invites')
+        .select('id, attempt_id')
+        .in('attempt_id', submittedIds),
+      supabase
+        .from('scores')
+        .select('attempt_id, station_id, reviewer_invite_id, evaluator_notes, verdict')
+        .in('attempt_id', submittedIds)
+        .not('reviewer_invite_id', 'is', null),
+    ])
+
+    if (invites) {
+      for (const inv of invites) {
+        inviteCountByAttempt[inv.attempt_id] = (inviteCountByAttempt[inv.attempt_id] || 0) + 1
+      }
+    }
 
     if (scores) {
-      const groupedVals: Record<string, number[]> = {}
-      const groupedKeys: Record<string, Set<string>> = {}
       for (const s of scores) {
-        if (!groupedVals[s.attempt_id]) groupedVals[s.attempt_id] = []
-        groupedVals[s.attempt_id].push(s.human_score)
-        if (!groupedKeys[s.attempt_id]) groupedKeys[s.attempt_id] = new Set()
-        groupedKeys[s.attempt_id].add(`${s.station_id}:${s.rubric_key}`)
-      }
-      for (const [id, vals] of Object.entries(groupedVals)) {
-        const role = attemptRoleMap[id]
-        const totalRubric = totalRubricForRole[role] ?? 0
-        const distinctScored = groupedKeys[id]?.size ?? 0
-        scoresByAttempt[id] = {
-          avg: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
-          reviewed: totalRubric > 0 && distinctScored >= totalRubric,
+        const aid = s.attempt_id
+        const rid = s.reviewer_invite_id as string
+        if (s.station_id === 'overall' && s.verdict) {
+          if (!reviewerVerdicts[aid]) reviewerVerdicts[aid] = {}
+          reviewerVerdicts[aid][rid] = s.verdict
+        } else if (s.evaluator_notes) {
+          try {
+            const parsed = JSON.parse(s.evaluator_notes) as Record<string, number>
+            const vals = Object.values(parsed).filter(v => typeof v === 'number')
+            if (!reviewerScoreVals[aid]) reviewerScoreVals[aid] = {}
+            if (!reviewerScoreVals[aid][rid]) reviewerScoreVals[aid][rid] = []
+            reviewerScoreVals[aid][rid].push(...vals)
+          } catch { /* skip */ }
         }
       }
     }
@@ -111,11 +115,39 @@ export async function getRecentTests() {
 
   return data.map(t => ({
     ...t,
-    attempts: (t.attempts as { id: string; status: string; attempt_number: number }[]).map(a => ({
-      ...a,
-      avgScore: scoresByAttempt[a.id]?.avg ?? null,
-      reviewed: scoresByAttempt[a.id]?.reviewed ?? false,
-    })),
+    attempts: (t.attempts as { id: string; status: string; attempt_number: number }[]).map(a => {
+      const totalInvites = inviteCountByAttempt[a.id] ?? 0
+      const verdictMap = reviewerVerdicts[a.id] ?? {}
+      const verdictsDone = Object.keys(verdictMap).length
+      const allDone = totalInvites > 0 && verdictsDone >= totalInvites
+
+      // avg per reviewer then avg of avgs
+      let finalScore: number | null = null
+      if (allDone) {
+        const avgs: number[] = []
+        for (const [rid, vals] of Object.entries(reviewerScoreVals[a.id] ?? {})) {
+          if (vals.length > 0 && verdictMap[rid]) {
+            avgs.push(vals.reduce((x, y) => x + y, 0) / vals.length)
+          }
+        }
+        if (avgs.length > 0) {
+          finalScore = Math.round((avgs.reduce((x, y) => x + y, 0) / avgs.length) * 10) / 10
+        }
+      }
+
+      const verdictCounts = { yes: 0, no: 0, maybe: 0 }
+      for (const v of Object.values(verdictMap)) {
+        if (v === 'yes' || v === 'no' || v === 'maybe') verdictCounts[v]++
+      }
+
+      return {
+        ...a,
+        avgScore: finalScore,
+        reviewed: allDone,
+        totalInvites,
+        verdictCounts,
+      }
+    }),
   }))
 }
 

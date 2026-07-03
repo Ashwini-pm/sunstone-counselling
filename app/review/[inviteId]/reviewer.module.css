@@ -167,6 +167,78 @@
 }
 .questionText { font-size: 15px; line-height: 1.6; margin: 0; color: var(--r-ink); }
 
+.rubricBox {
+  background: var(--r-white);
+  border: 1px solid var(--r-line);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.rubricList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rubricItem {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--r-line);
+}
+.rubricItem:last-child { border-bottom: none; }
+
+.rubricItemHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rubricName {
+  font-weight: 600;
+  color: var(--r-ink);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.rubricHint {
+  color: var(--r-muted);
+  font-size: 12px;
+  flex: 1;
+}
+
+.rubricScore {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--r-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreRow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.scoreBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--r-line);
+  background: var(--r-white);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--r-slate);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.scoreBtn:hover { background: #e8f4fb; border-color: var(--r-secondary); color: var(--r-secondary); }
+.scoreBtnSel { background: var(--r-secondary) !important; border-color: var(--r-secondary) !important; color: #fff !important; }
+
 .verdictSection {
   background: var(--r-white);
   border: 1px solid var(--r-line);
@@ -226,6 +298,74 @@
 }
 .navBtn:hover:not(:disabled) { background: #f0f2f4; }
 .navBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.navBtnPrimary {
+  background: var(--r-primary);
+  color: #fff;
+  border-color: var(--r-primary);
+}
+.navBtnPrimary:hover:not(:disabled) { background: #1e2d4a; }
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: var(--r-white);
+  border-radius: 16px;
+  padding: 32px;
+  width: 460px;
+  max-width: calc(100vw - 40px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--r-ink);
+}
+
+.modalSub {
+  font-size: 13px;
+  color: var(--r-muted);
+  margin: -8px 0 0;
+}
+
+.modalSkip {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--r-muted);
+  cursor: pointer;
+  text-align: center;
+  padding: 4px;
+  font-family: inherit;
+  text-decoration: underline;
+}
+.modalSkip:hover { color: var(--r-slate); }
+
+.errorBanner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ba1a1a;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 100;
+}
 
 .completeBanner {
   position: fixed;

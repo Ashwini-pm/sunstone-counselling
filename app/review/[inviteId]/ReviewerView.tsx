@@ -15,6 +15,7 @@ interface Props {
   steps: Step[]
   recordings: Recording[]
   initialVerdicts: Record<string, string>
+  initialScores: Record<string, Record<string, number>>
 }
 
 type Verdict = 'yes' | 'no' | 'maybe'
@@ -81,28 +82,59 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
 
 export default function ReviewerView({
   inviteId, reviewerName, candidateName, roleName, attemptNumber,
-  steps, recordings, initialVerdicts,
+  steps, recordings, initialVerdicts, initialScores,
 }: Props) {
   const recMap = Object.fromEntries(recordings.map(r => [r.station_id, r]))
-  const [verdicts, setVerdicts] = useState<Record<string, Verdict>>(initialVerdicts as Record<string, Verdict>)
-  const [saving, setSaving] = useState<string | null>(null)
+  const [scores, setScores] = useState<Record<string, Record<string, number>>>(initialScores)
+  const [saving, setSaving] = useState(false)
+  const [savingScore, setSavingScore] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [activeIdx, setActiveIdx] = useState(0)
+  const [showVerdictModal, setShowVerdictModal] = useState(false)
+  const [overallVerdict, setOverallVerdict] = useState<Verdict | null>(
+    (initialVerdicts['overall'] as Verdict) || null
+  )
 
   const activeStep = steps[activeIdx]
   const activeRec = activeStep ? recMap[activeStep.id] : null
 
-  async function saveVerdict(stationId: string, verdict: Verdict) {
-    setSaving(stationId)
-    setVerdicts(prev => ({ ...prev, [stationId]: verdict }))
+  async function saveRubricScore(stationId: string, rubricKey: string, score: number) {
+    const key = `${stationId}:${rubricKey}`
+    setSavingScore(key)
+    setSaveError(null)
+    const updatedStationScores = { ...(scores[stationId] || {}), [rubricKey]: score }
+    setScores(prev => ({ ...prev, [stationId]: updatedStationScores }))
+    try {
+      const res = await fetch('/api/reviewer/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId, stationId, allScores: updatedStationScores }),
+      })
+      const data = await res.json()
+      if (!res.ok) setSaveError(data.error || 'Save failed')
+    } catch {
+      setSaveError('Network error')
+    }
+    setSavingScore(null)
+  }
+
+  async function saveVerdict(verdict: Verdict) {
+    setSaving(true)
+    setOverallVerdict(verdict)
     await fetch('/api/reviewer/score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inviteId, stationId, verdict }),
+      body: JSON.stringify({ inviteId, stationId: 'overall', allScores: {}, verdict }),
     })
-    setSaving(null)
+    setSaving(false)
+    setShowVerdictModal(false)
   }
 
-  const totalDone = steps.filter(s => verdicts[s.id]).length
+  const totalDone = steps.filter(s => {
+    const stationScores = scores[s.id] || {}
+    return s.rubric.every(r => stationScores[r.key])
+  }).length
+  const isLast = activeIdx === steps.length - 1
 
   return (
     <div className={styles.wrap}>
@@ -120,14 +152,15 @@ export default function ReviewerView({
             <div className={styles.sidebarHeading}>Stations</div>
             <nav className={styles.sidebarNav}>
               {steps.map((step, i) => {
-                const v = verdicts[step.id]
+                const stationScores = scores[step.id] || {}
+                const done = step.rubric.length > 0 && step.rubric.every(r => stationScores[r.key])
                 return (
                   <button
                     key={step.id}
                     className={`${styles.sideItem} ${i === activeIdx ? styles.sideItemActive : ''}`}
                     onClick={() => setActiveIdx(i)}
                   >
-                    <span className={`${styles.verdictDot} ${v ? styles[`dot_${v}`] : styles.dot_none}`} />
+                    <span className={`${styles.verdictDot} ${done ? styles.dot_yes : styles.dot_none}`} />
                     {step.title}
                   </button>
                 )
@@ -155,25 +188,38 @@ export default function ReviewerView({
                   <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: activeStep.topic }} />
                 </div>
 
-                <div className={styles.verdictSection}>
-                  <div className={styles.verdictLabel}>Should this candidate be selected?</div>
-                  <div className={styles.verdictBtns}>
-                    {(['yes', 'no', 'maybe'] as Verdict[]).map(v => (
-                      <button
-                        key={v}
-                        className={`${styles.verdictBtn} ${styles[`verdict_${v}`]} ${verdicts[activeStep.id] === v ? styles.verdictBtnSel : ''}`}
-                        onClick={() => saveVerdict(activeStep.id, v)}
-                        disabled={saving === activeStep.id}
-                      >
-                        {v === 'yes' ? '✓ Yes' : v === 'no' ? '✗ No' : '~ Maybe'}
-                      </button>
-                    ))}
+                {activeStep.rubric.length > 0 && (
+                  <div className={styles.rubricBox}>
+                    <div className={styles.questionLabel}>Rubric evaluation</div>
+                    {activeStep.rubric.map(r => {
+                      const stationScores = scores[activeStep.id] || {}
+                      const val = stationScores[r.key]
+                      const isSavingThis = savingScore === `${activeStep.id}:${r.key}`
+                      return (
+                        <div key={r.key} className={styles.rubricItem}>
+                          <div className={styles.rubricItemHead}>
+                            <span className={styles.rubricName}>{r.name}</span>
+                            <span className={styles.rubricHint}>{r.hint}</span>
+                            <span className={styles.rubricScore}>
+                              {isSavingThis ? '…' : val ? `${val}/10` : '--'}
+                            </span>
+                          </div>
+                          <div className={styles.scoreRow}>
+                            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                              <button
+                                key={n}
+                                className={`${styles.scoreBtn} ${val === n ? styles.scoreBtnSel : ''}`}
+                                onClick={() => saveRubricScore(activeStep.id, r.key, n)}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                  {saving === activeStep.id && <span className={styles.savingNote}>Saving…</span>}
-                  {verdicts[activeStep.id] && saving !== activeStep.id && (
-                    <span className={styles.savedNote}>Saved</span>
-                  )}
-                </div>
+                )}
 
                 <div className={styles.panelFooter}>
                   <button
@@ -181,11 +227,18 @@ export default function ReviewerView({
                     onClick={() => setActiveIdx(i => Math.max(0, i - 1))}
                     disabled={activeIdx === 0}
                   >← Previous</button>
-                  <button
-                    className={styles.navBtn}
-                    onClick={() => setActiveIdx(i => Math.min(steps.length - 1, i + 1))}
-                    disabled={activeIdx === steps.length - 1}
-                  >Next →</button>
+                  {isLast
+                    ? <button
+                        className={`${styles.navBtn} ${styles.navBtnPrimary}`}
+                        onClick={() => setShowVerdictModal(true)}
+                      >
+                        {overallVerdict ? `Verdict: ${overallVerdict} (change)` : 'Submit verdict →'}
+                      </button>
+                    : <button
+                        className={styles.navBtn}
+                        onClick={() => setActiveIdx(i => i + 1)}
+                      >Next →</button>
+                  }
                 </div>
               </>
             )}
@@ -193,9 +246,35 @@ export default function ReviewerView({
         </div>
       </main>
 
-      {totalDone === steps.length && (
+      {saveError && (
+        <div className={styles.errorBanner}>Error saving: {saveError}</div>
+      )}
+
+      {overallVerdict && (
         <div className={styles.completeBanner}>
-          All {steps.length} stations reviewed. Thank you, {reviewerName}!
+          Verdict submitted: {overallVerdict.toUpperCase()}. Thank you, {reviewerName}!
+        </div>
+      )}
+
+      {showVerdictModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowVerdictModal(false)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalTitle}>Should this candidate be selected?</div>
+            <p className={styles.modalSub}>Your overall verdict for {candidateName}</p>
+            <div className={styles.verdictBtns}>
+              {(['yes', 'no', 'maybe'] as Verdict[]).map(v => (
+                <button
+                  key={v}
+                  className={`${styles.verdictBtn} ${styles[`verdict_${v}`]} ${overallVerdict === v ? styles.verdictBtnSel : ''}`}
+                  onClick={() => saveVerdict(v)}
+                  disabled={saving}
+                >
+                  {v === 'yes' ? '✓ Yes' : v === 'no' ? '✗ No' : '~ Maybe'}
+                </button>
+              ))}
+            </div>
+            {saving && <span className={styles.savingNote}>Saving…</span>}
+          </div>
         </div>
       )}
     </div>

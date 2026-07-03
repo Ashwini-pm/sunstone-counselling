@@ -36,7 +36,7 @@ export default async function ReviewPage({
       .eq('attempt_id', invite.attempt_id),
     supabase
       .from('scores')
-      .select('station_id, verdict')
+      .select('station_id, evaluator_notes, verdict')
       .eq('reviewer_invite_id', inviteId),
   ])
 
@@ -59,8 +59,12 @@ export default async function ReviewPage({
   )
 
   const verdictMap: Record<string, string> = {}
+  const scoresMap: Record<string, Record<string, number>> = {}
   for (const s of (existingScores || [])) {
     if (s.verdict) verdictMap[s.station_id] = s.verdict
+    if (s.evaluator_notes) {
+      try { scoresMap[s.station_id] = JSON.parse(s.evaluator_notes) } catch {}
+    }
   }
 
   return (
@@ -73,6 +77,7 @@ export default async function ReviewPage({
       steps={role.steps}
       recordings={signedRecordings}
       initialVerdicts={verdictMap}
+      initialScores={scoresMap}
     />
   )
 }

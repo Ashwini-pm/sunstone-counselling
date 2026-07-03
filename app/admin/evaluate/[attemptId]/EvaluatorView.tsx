@@ -9,7 +9,7 @@ import styles from './evaluate.module.css'
 interface Recording { station_id: string; r2_url: string; duration_sec: number; plan_notes: string | null }
 interface ExistingScore { station_id: string; rubric_key: string; human_score: number | null; evaluator_notes: string | null }
 interface ReviewerInvite { id: string; name: string; email: string; created_at: string }
-interface ReviewerScore { reviewer_invite_id: string; station_id: string; verdict: string }
+interface ReviewerScore { reviewer_invite_id: string; station_id: string; evaluator_notes: string | null; verdict: string | null }
 
 interface Props {
   attemptId: string
@@ -165,12 +165,44 @@ export default function EvaluatorView(props: Props) {
   const [inviteError, setInviteError] = useState('')
   const [copiedInvite, setCopiedInvite] = useState(false)
   const [isPendingInvite, startInviteTransition] = useTransition()
+  const [selectedReviewerId, setSelectedReviewerId] = useState<string | null>(null)
 
-  // Build reviewer verdict map: stationId -> { inviteId -> verdict }
-  const reviewerVerdictMap: Record<string, Record<string, string>> = {}
+  // overall verdict per reviewer
+  const reviewerOverallVerdict: Record<string, string> = {}
+  // all rubric scores per reviewer: inviteId -> flat list of numbers
+  const reviewerAllScores: Record<string, number[]> = {}
   for (const s of props.reviewerScores) {
-    if (!reviewerVerdictMap[s.station_id]) reviewerVerdictMap[s.station_id] = {}
-    reviewerVerdictMap[s.station_id][s.reviewer_invite_id] = s.verdict
+    if (s.station_id === 'overall' && s.verdict) {
+      reviewerOverallVerdict[s.reviewer_invite_id] = s.verdict
+    } else {
+      if (s.verdict) reviewerOverallVerdict[s.reviewer_invite_id] = s.verdict
+      if (s.evaluator_notes) {
+        try {
+          const parsed = JSON.parse(s.evaluator_notes) as Record<string, number>
+          const vals = Object.values(parsed).filter(v => typeof v === 'number')
+          if (!reviewerAllScores[s.reviewer_invite_id]) reviewerAllScores[s.reviewer_invite_id] = []
+          reviewerAllScores[s.reviewer_invite_id].push(...vals)
+        } catch {}
+      }
+    }
+  }
+
+  // avg per reviewer
+  const reviewerAvg: Record<string, number> = {}
+  for (const [id, vals] of Object.entries(reviewerAllScores)) {
+    if (vals.length > 0) reviewerAvg[id] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
+  }
+
+  // final score = avg of reviewer avgs
+  const reviewerAvgVals = Object.values(reviewerAvg)
+  const finalScore = reviewerAvgVals.length > 0
+    ? Math.round((reviewerAvgVals.reduce((a, b) => a + b, 0) / reviewerAvgVals.length) * 10) / 10
+    : null
+
+  // verdict counts
+  const verdictCounts = { yes: 0, no: 0, maybe: 0 }
+  for (const v of Object.values(reviewerOverallVerdict)) {
+    if (v === 'yes' || v === 'no' || v === 'maybe') verdictCounts[v]++
   }
 
   function handleInvite(e: React.FormEvent) {
@@ -315,68 +347,17 @@ function overallAvg(): number | null {
               <span className={`${styles.badge} ${styles.badgeGrey}`}>
                 {totalScored}/{props.steps.length} Scored
               </span>
-              {overall !== null && (
+              {finalScore !== null && (
                 <span className={`${styles.badge} ${styles.badgeBlue}`}>
-                  Running Avg: {overall}
+                  Final Score: {finalScore}
+                </span>
+              )}
+              {(verdictCounts.yes > 0 || verdictCounts.no > 0 || verdictCounts.maybe > 0) && (
+                <span className={`${styles.badge} ${styles.badgeGrey}`}>
+                  {verdictCounts.yes > 0 && `✓${verdictCounts.yes} `}{verdictCounts.no > 0 && `✗${verdictCounts.no} `}{verdictCounts.maybe > 0 && `~${verdictCounts.maybe}`}
                 </span>
               )}
             </div>
-          </div>
-
-          {/* Reviewer invite section */}
-          <div className={styles.reviewerSection}>
-            <div className={styles.reviewerSectionTitle}>Invite Reviewers</div>
-            <form className={styles.inviteForm} onSubmit={handleInvite}>
-              <input
-                className={styles.inviteInput}
-                placeholder="Reviewer name"
-                value={reviewerName}
-                onChange={e => setReviewerName(e.target.value)}
-                required
-              />
-              <input
-                className={styles.inviteInput}
-                type="email"
-                placeholder="Reviewer email"
-                value={reviewerEmail}
-                onChange={e => setReviewerEmail(e.target.value)}
-                required
-              />
-              <button className={styles.inviteBtn} type="submit" disabled={isPendingInvite}>
-                {isPendingInvite ? 'Creating…' : 'Generate link →'}
-              </button>
-            </form>
-            {inviteError && <div className={styles.inviteError}>{inviteError}</div>}
-            {inviteLink && (
-              <div className={styles.inviteLinkBox}>
-                <code className={styles.inviteLinkText}>{inviteLink}</code>
-                <button className={styles.inviteCopyBtn} onClick={copyInvite}>
-                  {copiedInvite ? '✓ Copied' : 'Copy'}
-                </button>
-              </div>
-            )}
-            {invites.length > 0 && (
-              <div className={styles.inviteList}>
-                {invites.map(inv => (
-                  <div key={inv.id} className={styles.inviteRow}>
-                    <span className={styles.inviteRowName}>{inv.name}</span>
-                    <span className={styles.inviteRowEmail}>{inv.email}</span>
-                    <div className={styles.inviteRowVerdicts}>
-                      {props.steps.map(s => {
-                        const v = reviewerVerdictMap[s.id]?.[inv.id]
-                        return (
-                          <span
-                            key={s.id}
-                            title={`${s.title}: ${v || 'pending'}`}
-                            className={`${styles.inviteVerdictDot} ${v ? styles[`ivd_${v}`] : styles.ivd_none}`}
-                          />
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Two-panel content */}
@@ -405,6 +386,65 @@ function overallAvg(): number | null {
             {/* Main panel */}
             {activeStep && (
               <section className={styles.mainPanel}>
+                {/* Reviewer invite section */}
+                <div className={styles.reviewerSection}>
+                  <div className={styles.reviewerSectionTitle}>Invite Reviewers</div>
+                  <form className={styles.inviteForm} onSubmit={handleInvite}>
+                    <input
+                      className={styles.inviteInput}
+                      placeholder="Reviewer name"
+                      value={reviewerName}
+                      onChange={e => setReviewerName(e.target.value)}
+                      required
+                    />
+                    <input
+                      className={styles.inviteInput}
+                      type="email"
+                      placeholder="Reviewer email"
+                      value={reviewerEmail}
+                      onChange={e => setReviewerEmail(e.target.value)}
+                      required
+                    />
+                    <button className={styles.inviteBtn} type="submit" disabled={isPendingInvite}>
+                      {isPendingInvite ? 'Creating…' : 'Generate link →'}
+                    </button>
+                  </form>
+                  {inviteError && <div className={styles.inviteError}>{inviteError}</div>}
+                  {inviteLink && (
+                    <div className={styles.inviteLinkBox}>
+                      <code className={styles.inviteLinkText}>{inviteLink}</code>
+                      <button className={styles.inviteCopyBtn} onClick={copyInvite}>
+                        {copiedInvite ? '✓ Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  )}
+                  {invites.length > 0 && (
+                    <div className={styles.inviteList}>
+                      {invites.map(inv => {
+                        const v = reviewerOverallVerdict[inv.id]
+                        const link = typeof window !== 'undefined' ? `${window.location.origin}/review/${inv.id}` : `/review/${inv.id}`
+                        return (
+                          <div key={inv.id} className={styles.inviteRow}>
+                            <div className={styles.inviteRowMeta}>
+                              <span className={styles.inviteRowName}>{inv.name}</span>
+                              <span className={styles.inviteRowEmail}>{inv.email}</span>
+                            </div>
+                            <div className={styles.inviteLinkBox}>
+                              <code className={styles.inviteLinkText}>{link}</code>
+                              <button className={styles.inviteCopyBtn} onClick={() => navigator.clipboard.writeText(link)}>
+                                Copy
+                              </button>
+                            </div>
+                            <span className={`${styles.verdictChip} ${v ? styles[`vc_${v}`] : styles.vc_pending}`}>
+                              {v || 'pending'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Station header */}
                 <div className={styles.stationHead}>
                   <div>
@@ -421,60 +461,62 @@ function overallAvg(): number | null {
                   }
                 </div>
 
-                {/* Reviewer verdicts for this station */}
+                {/* Reviewer overall verdicts */}
                 {invites.length > 0 && (
                   <div className={styles.stationVerdicts}>
-                    <div className={styles.stationVerdictsLabel}>Reviewer verdicts</div>
+                    <div className={styles.stationVerdictsLabel}>Reviewer verdicts (click to view scores)</div>
                     <div className={styles.stationVerdictsList}>
                       {invites.map(inv => {
-                        const v = reviewerVerdictMap[activeStep.id]?.[inv.id]
+                        const v = reviewerOverallVerdict[inv.id]
+                        const isSelected = selectedReviewerId === inv.id
                         return (
-                          <span key={inv.id} className={`${styles.verdictChip} ${v ? styles[`vc_${v}`] : styles.vc_pending}`}>
+                          <button
+                            key={inv.id}
+                            className={`${styles.verdictChip} ${v ? styles[`vc_${v}`] : styles.vc_pending} ${isSelected ? styles.verdictChipSel : ''}`}
+                            onClick={() => setSelectedReviewerId(isSelected ? null : inv.id)}
+                          >
                             {inv.name.split(' ')[0]}: {v || 'pending'}
-                          </span>
+                            {reviewerAvg[inv.id] != null && ` · ${reviewerAvg[inv.id]}`}
+                          </button>
                         )
                       })}
                     </div>
                   </div>
                 )}
 
-                {/* Rubric + Notes */}
-                <div className={styles.rubricArea}>
-                  <div>
-                    <div className={styles.rubricSectionTitle}>Rubric Evaluation</div>
-                    {activeStep.rubric.map(r => (
-                      <div key={r.key} className={styles.rubricItem}>
-                        <div className={styles.rubricItemHead}>
-                          <span className={styles.rubricName}>{r.name} <span className={styles.rubricRequired}>*</span></span>
-                          <span className={styles.rubricScore}>
-                            {activeEntry.scores[r.key] ? `${activeEntry.scores[r.key]}/10` : '--'}
-                          </span>
-                        </div>
-                        <div className={styles.scoreRow}>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                            <button
-                              key={n}
-                              className={`${styles.scoreBtn} ${activeEntry.scores[r.key] === n ? styles.scoreBtnSel : ''}`}
-                              onClick={() => setScore(activeStep.id, r.key, n)}
-                            >
-                              {n}
-                            </button>
-                          ))}
-                        </div>
+                {/* Reviewer scores panel — shown when chip clicked */}
+                {selectedReviewerId && (() => {
+                  const inv = invites.find(i => i.id === selectedReviewerId)
+                  const stScores = (() => {
+                    try {
+                      const row = props.reviewerScores.find(s => s.reviewer_invite_id === selectedReviewerId && s.station_id === activeStep.id)
+                      return row?.evaluator_notes ? JSON.parse(row.evaluator_notes) as Record<string, number> : {}
+                    } catch { return {} }
+                  })()
+                  return (
+                    <div className={styles.reviewerScoresPanel}>
+                      <div className={styles.reviewerScoresPanelTitle}>
+                        {inv?.name}&apos;s scores — {activeStep.title}
+                        <span className={styles.reviewerScoresPanelVerdict}>
+                          Overall verdict: {reviewerOverallVerdict[selectedReviewerId] || 'pending'} · Avg: {reviewerAvg[selectedReviewerId] ?? '--'}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className={styles.notesCol}>
-                    <label className={styles.notesLabel}>Evaluator Notes</label>
-                    <textarea
-                      className={styles.notes}
-                      placeholder="Capture specific observations about clarity, pace, and expertise..."
-                      value={activeEntry.notes}
-                      onChange={e => setNotes(activeStep.id, e.target.value)}
-                    />
-                  </div>
-                </div>
+                      {activeStep.rubric.map(r => (
+                        <div key={r.key} className={styles.reviewerScoreRow}>
+                          <span className={styles.reviewerScoreName}>{r.name}</span>
+                          <div className={styles.scoreRow}>
+                            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                              <span key={n} className={`${styles.scoreBtn} ${stScores[r.key] === n ? styles.scoreBtnReadSel : ''}`}>
+                                {n}
+                              </span>
+                            ))}
+                          </div>
+                          <span className={styles.reviewerScoreVal}>{stScores[r.key] ? `${stScores[r.key]}/10` : '--'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {/* Footer */}
                 <div className={styles.panelFooter}>
@@ -495,21 +537,6 @@ function overallAvg(): number | null {
                     </button>
                   </div>
                   <div className={styles.footerActions}>
-                    {isSaved && <span className={styles.savedTick}>Saved</span>}
-                    <button
-                      className={styles.saveDraftBtn}
-                      onClick={() => saveStation(activeStep.id, activeStep.rubric)}
-                      disabled={isSaving}
-                    >
-                      {isSaving ? 'Saving…' : 'Save Draft'}
-                    </button>
-                    <button
-                      className={styles.submitBtn}
-                      onClick={() => saveStation(activeStep.id, activeStep.rubric, true)}
-                      disabled={isSaving}
-                    >
-                      Submit Evaluation
-                    </button>
                   </div>
                 </div>
               </section>

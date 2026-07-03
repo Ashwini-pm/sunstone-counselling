@@ -648,11 +648,10 @@
 
 /* ── REVIEWER SECTION ── */
 .reviewerSection {
-  background: var(--e-white);
-  border: 1px solid var(--e-line);
-  border-radius: 12px;
-  padding: 18px 24px;
-  margin: 0 24px 0;
+  background: var(--e-surface-low);
+  border-bottom: 1px solid var(--e-line);
+  padding: 18px 40px;
+  flex-shrink: 0;
 }
 
 .reviewerSectionTitle {
@@ -735,15 +734,17 @@
   gap: 6px;
 }
 .inviteRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 180px 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   font-size: 13px;
-  padding: 6px 0;
+  padding: 12px 0;
   border-top: 1px solid var(--e-line);
 }
-.inviteRowName { font-weight: 700; color: var(--e-ink); min-width: 100px; }
-.inviteRowEmail { color: var(--e-muted); flex: 1; }
+.inviteRowMeta { display: flex; flex-direction: column; gap: 3px; }
+.inviteRowName { font-weight: 700; color: var(--e-ink); font-size: 14px; }
+.inviteRowEmail { color: var(--e-muted); font-size: 12px; }
 .inviteRowVerdicts { display: flex; gap: 4px; flex-wrap: wrap; }
 
 .inviteVerdictDot {
@@ -784,3 +785,58 @@
 .vc_yes { background: #dcfce7; color: #15803d; }
 .vc_no { background: #ffdad6; color: #ba1a1a; }
 .vc_maybe { background: #fef3c7; color: #92400e; }
+
+/* clickable verdict chip */
+.verdictChip { border: 2px solid transparent; cursor: pointer; font-family: inherit; transition: all 0.12s; }
+.verdictChip:hover { filter: brightness(0.95); }
+.verdictChipSel { outline: 2px solid var(--e-primary); outline-offset: 2px; }
+
+/* reviewer scores panel */
+.reviewerScoresPanel {
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.reviewerScoresPanelTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--e-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.reviewerScoresPanelVerdict {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--e-muted);
+}
+.reviewerScoreRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.reviewerScoreName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--e-ink);
+  width: 180px;
+  flex-shrink: 0;
+}
+.reviewerScoreVal {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3730a3;
+  width: 36px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.scoreBtnReadSel {
+  background: #3730a3 !important;
+  border-color: #3730a3 !important;
+  color: #fff !important;
+  cursor: default;
+}

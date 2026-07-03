@@ -493,3 +493,11 @@
 }
 .pageBtn:hover:not(:disabled) { background: var(--a-surface-high); }
 .pageBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.verdictPills { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.vpill { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.vpillYes { background: #dcfce7; color: #15803d; }
+.vpillNo { background: #ffdad6; color: #ba1a1a; }
+.vpillMaybe { background: #fef3c7; color: #92400e; }
+
+.verdictText { font-size: 13px; color: var(--a-ink); font-variant-numeric: tabular-nums; }
