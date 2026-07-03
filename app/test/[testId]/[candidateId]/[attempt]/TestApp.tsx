@@ -370,7 +370,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           <div className={styles.violationCard}>
             <div className={styles.violationIcon}>⚠️</div>
             <h3 className={styles.violationTitle}>Stay on this window</h3>
-            <p className={styles.violationMsg}>{violationReason} Switching tabs or exiting fullscreen is not allowed. Violation {violationCount} recorded.</p>
+            <p className={styles.violationMsg}>{violationReason} Switching tabs or exiting fullscreen is not allowed.</p>
             <button className={styles.gateBtn} style={{ marginTop: 16 }} onClick={reenterFullscreen}>
               Return to assessment
             </button>
@@ -454,13 +454,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
               <>
                 <div className={styles.recBadge}>
                   <span className={styles.recDot} />
-                  {paused ? 'PAUSED' : 'RECORDING'}
+                  RECORDING
                 </div>
                 <div className={styles.elapsedBadge}>{fmt(elapsed)}</div>
                 <div className={styles.floatingControls}>
-                  <button className={styles.floatPauseBtn} onClick={togglePause}>
-                    {paused ? '▶' : '⏸'}
-                  </button>
                   <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
                 </div>
               </>
