@@ -57,6 +57,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [flashQuery, setFlashQuery] = useState<{ who: string; text: string } | null>(null)
   const [overlayMsg, setOverlayMsg] = useState('')
 
+  const [globalElapsed, setGlobalElapsed] = useState(0)
+  const globalElapsedRef = useRef(0)
+  const globalTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -114,6 +118,17 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     await enterFullscreen()
     setStage('station')
   }
+
+  useEffect(() => {
+    if (stage !== 'station') return
+    globalElapsedRef.current = 0
+    setGlobalElapsed(0)
+    globalTickRef.current = setInterval(() => {
+      globalElapsedRef.current++
+      setGlobalElapsed(globalElapsedRef.current)
+    }, 1000)
+    return () => { if (globalTickRef.current) clearInterval(globalTickRef.current) }
+  }, [stage])
 
   async function reenterFullscreen() {
     setShowViolationWarning(false)
@@ -274,10 +289,11 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       setIdx(i => i + 1)
     } else {
       setOverlayMsg('Submitting assessment…')
+      if (globalTickRef.current) clearInterval(globalTickRef.current)
       await fetch('/api/attempt/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attemptId }),
+        body: JSON.stringify({ attemptId, totalDurationSec: globalElapsedRef.current }),
       })
       if (stream) stream.getTracks().forEach(t => t.stop())
       setOverlayMsg('')
@@ -344,8 +360,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const last = idx === steps.length - 1
   const rec = recordings[step.id]
   const uploadStatus = rec?.uploadStatus
-  const remaining = Math.max(0, step.durationSec - elapsed)
-  const remainingLow = remaining < 30 && recording
   const pct = Math.round(((idx + 1) / steps.length) * 100)
 
   return (
@@ -379,9 +393,9 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         </div>
         <span className={styles.topCenter}>{ROLE_LABELS[role] || role}</span>
         <div className={styles.topRight}>
-          <div className={`${styles.timerPill} ${remainingLow ? styles.timerPillLow : ''}`}>
+          <div className={styles.timerPill}>
             <span className={styles.timerIcon}>⏱</span>
-            {recording ? fmt(remaining) : fmt(step.durationSec)}
+            {fmt(globalElapsed)}
           </div>
         </div>
       </header>

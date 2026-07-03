@@ -26,6 +26,7 @@ interface Props {
   existingScores: ExistingScore[]
   reviewerInvites: ReviewerInvite[]
   reviewerScores: ReviewerScore[]
+  totalDurationSec: number | null
 }
 
 type ScoreMap = Record<string, { scores: Record<string, number>; notes: string }>
@@ -140,6 +141,11 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
       </div>
     </div>
   )
+}
+
+function fmtDuration(secs: number) {
+  const m = Math.floor(secs / 60), s = secs % 60
+  return `${m}m ${String(s).padStart(2, '0')}s`
 }
 
 export default function EvaluatorView(props: Props) {
@@ -347,6 +353,11 @@ function overallAvg(): number | null {
               <span className={`${styles.badge} ${styles.badgeGrey}`}>
                 {totalScored}/{props.steps.length} Scored
               </span>
+              {props.totalDurationSec != null && (
+                <span className={`${styles.badge} ${styles.badgeGrey}`}>
+                  ⏱ {fmtDuration(props.totalDurationSec)}
+                </span>
+              )}
               {finalScore !== null && (
                 <span className={`${styles.badge} ${styles.badgeBlue}`}>
                   Final Score: {finalScore}

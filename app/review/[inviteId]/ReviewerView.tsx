@@ -16,6 +16,7 @@ interface Props {
   recordings: Recording[]
   initialVerdicts: Record<string, string>
   initialScores: Record<string, Record<string, number>>
+  totalDurationSec: number | null
 }
 
 type Verdict = 'yes' | 'no' | 'maybe'
@@ -80,9 +81,14 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
   )
 }
 
+function fmtDuration(secs: number) {
+  const m = Math.floor(secs / 60), s = secs % 60
+  return `${m}m ${String(s).padStart(2, '0')}s`
+}
+
 export default function ReviewerView({
   inviteId, reviewerName, candidateName, roleName, attemptNumber,
-  steps, recordings, initialVerdicts, initialScores,
+  steps, recordings, initialVerdicts, initialScores, totalDurationSec,
 }: Props) {
   const recMap = Object.fromEntries(recordings.map(r => [r.station_id, r]))
   const [scores, setScores] = useState<Record<string, Record<string, number>>>(initialScores)
@@ -142,6 +148,7 @@ export default function ReviewerView({
         <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.navLogo} />
         <div className={styles.navMeta}>
           Reviewing: <strong>{candidateName}</strong> · {roleName} · Attempt #{attemptNumber}
+          {totalDurationSec != null && <> · ⏱ {fmtDuration(totalDurationSec)}</>}
         </div>
         <div className={styles.navProgress}>{totalDone}/{steps.length} reviewed</div>
       </header>

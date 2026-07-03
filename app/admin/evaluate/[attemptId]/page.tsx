@@ -21,7 +21,7 @@ export default async function EvaluatePage({
 
   const { data: attempt } = await supabase
     .from('attempts')
-    .select('id, status, violation_count, is_flagged, attempt_number, test_id, candidate_id')
+    .select('id, status, violation_count, is_flagged, attempt_number, test_id, candidate_id, total_duration_sec')
     .eq('id', attemptId)
     .single()
 
@@ -70,6 +70,7 @@ export default async function EvaluatePage({
       existingScores={existingScores || []}
       reviewerInvites={reviewerInvites}
       reviewerScores={reviewerScores || []}
+      totalDurationSec={attempt.total_duration_sec || null}
     />
   )
 }

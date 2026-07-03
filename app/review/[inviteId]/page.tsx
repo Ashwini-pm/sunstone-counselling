@@ -27,7 +27,7 @@ export default async function ReviewPage({
   ] = await Promise.all([
     supabase
       .from('attempts')
-      .select('id, attempt_number, test_id, candidate_id')
+      .select('id, attempt_number, test_id, candidate_id, total_duration_sec')
       .eq('id', invite.attempt_id)
       .single(),
     supabase
@@ -78,6 +78,7 @@ export default async function ReviewPage({
       recordings={signedRecordings}
       initialVerdicts={verdictMap}
       initialScores={scoresMap}
+      totalDurationSec={attempt.total_duration_sec || null}
     />
   )
 }
