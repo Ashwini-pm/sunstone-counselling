@@ -473,7 +473,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                   <span className={styles.recDot} />
                   RECORDING
                 </div>
-                <div className={styles.elapsedBadge}>{fmt(elapsed)}</div>
+                <div className={styles.elapsedBadge}>{fmt(elapsed)} / {fmt(step.durationSec)}</div>
                 <div className={styles.floatingControls}>
                   <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
                 </div>
