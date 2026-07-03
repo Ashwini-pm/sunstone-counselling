@@ -1,5 +1,6 @@
 export type StationType = 'intro' | 'teach' | 'twoway' | 'scenario' | 'plan' | 'reflect'
 export type RoleKey = 'marketing' | 'java'
+export type NewRoleKey = 'tech' | 'management' | 'coding' | 'aptitude' | 'comms'
 
 export interface Query { at: number; who: string; text: string }
 export interface RubricItem { key: string; name: string; hint: string }
@@ -64,6 +65,102 @@ const baseSteps = (marketingTopics: Partial<Step>[], javaTopics: Partial<Step>[]
   return { marketingTopics, javaTopics }
 }
 void baseSteps
+
+// ── NEW SYSTEM: 9-station structure (questions from DB) ──────────────────────
+
+export const NEW_ROLE_LABELS: Record<NewRoleKey, string> = {
+  tech: 'University Faculty · Tech',
+  management: 'University Faculty · Management',
+  coding: 'Placement Trainer · Competitive Coding',
+  aptitude: 'Placement Trainer · Aptitude',
+  comms: 'Placement Trainer · Comms',
+}
+
+const INTRO_STATIC = "In about 90 seconds, tell us:<br>1. Who you are<br>2. What you teach<br>3. One belief that shapes how you teach<br><br>Then, why would you be a good fit for students who may be first-generation graduates, come from Tier-2/3 backgrounds, and use English as a second language?"
+const REFLECT_STATIC = "In 30 seconds: (1) how do you think you performed today, and (2) one thing you would do differently in a real classroom?"
+
+export const STATION_DEFS: Record<string, Omit<Step, 'id' | 'queries'>> = {
+  intro: {
+    type: 'intro', title: 'Intro & teaching philosophy', durationSec: 120,
+    blurb: 'A short introduction to the hiring panel.',
+    topic: INTRO_STATIC, rubric: RUBRIC.intro, ai: AI.intro,
+  },
+  'micro-teaching': {
+    type: 'teach', title: 'Micro-teaching + live doubts', durationSec: 300,
+    blurb: 'Teach this topic as if you are in a live classroom. Student doubts will appear on screen during your session.',
+    topic: '', rubric: RUBRIC.teach, ai: AI.teach,
+  },
+  'doubt-1': {
+    type: 'scenario', title: 'Resolving a student doubt', durationSec: 120,
+    blurb: 'A student holds a misconception. Resolve it the way you would in class.',
+    topic: '', rubric: RUBRIC.doubt, ai: AI.doubt,
+  },
+  'doubt-2': {
+    type: 'scenario', title: 'Resolving another doubt', durationSec: 120,
+    blurb: 'A second student misconception — different from the first.',
+    topic: '', rubric: RUBRIC.doubt, ai: AI.doubt,
+  },
+  'classroom-challenge': {
+    type: 'scenario', title: 'Managing a classroom challenge', durationSec: 120,
+    blurb: 'Respond as you would in a live classroom.',
+    topic: '', rubric: RUBRIC.difficult, ai: AI.difficult,
+  },
+  mentoring: {
+    type: 'scenario', title: 'Mentoring a student', durationSec: 150,
+    blurb: 'Respond to the student as if they are sitting in front of you.',
+    topic: '', rubric: RUBRIC.dilemma, ai: AI.dilemma,
+  },
+  'lesson-design': {
+    type: 'plan', title: 'Lesson design', durationSec: 90,
+    blurb: 'Write your lesson plan, then record a short spoken explanation.',
+    topic: '', notes: true, rubric: RUBRIC.plan, ai: AI.plan,
+  },
+  integrity: {
+    type: 'scenario', title: 'Integrity check', durationSec: 120,
+    blurb: 'A professional judgment scenario.',
+    topic: '', rubric: RUBRIC.integrity, ai: AI.integrity,
+  },
+  reflect: {
+    type: 'reflect', title: 'Reflection', durationSec: 60,
+    blurb: 'A short reflection on how your session went.',
+    topic: REFLECT_STATIC, rubric: RUBRIC.reflect, ai: AI.reflect,
+  },
+}
+
+const DOUBT_NAMES = ['Priya', 'Rahul', 'Sneha']
+const DOUBT_TIMES = [40, 100, 180]
+
+export interface StationResult {
+  stationId: string
+  position: number
+  questionId: string | null
+  content: string | null
+  doubts: string[] | null
+}
+
+export function buildSteps(stations: StationResult[]): Step[] {
+  return [...stations]
+    .sort((a, b) => a.position - b.position)
+    .map(s => {
+      const def = STATION_DEFS[s.stationId]
+      if (!def) throw new Error(`Unknown station: ${s.stationId}`)
+      const queries = s.doubts
+        ? s.doubts.map((text, i) => ({
+            at: DOUBT_TIMES[i] ?? 40 + i * 60,
+            who: DOUBT_NAMES[i % DOUBT_NAMES.length],
+            text,
+          }))
+        : undefined
+      return {
+        id: s.stationId,
+        ...def,
+        topic: s.content ?? def.topic,
+        queries,
+      } as Step
+    })
+}
+
+// ── LEGACY: kept for reviewer page (marketing + java only) ───────────────────
 
 export const ROLES: Record<RoleKey, Role> = {
   marketing: {

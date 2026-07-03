@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ROLES, type Step } from '@/lib/assessment-data'
+import { NEW_ROLE_LABELS, buildSteps, type Step, type StationResult } from '@/lib/assessment-data'
 import styles from './test.module.css'
 
 interface Props {
@@ -32,10 +32,11 @@ function fmt(s: number) {
 const ROLE_LABELS: Record<string, string> = {
   java: 'B.Tech CS · Java',
   marketing: 'MBA · Marketing',
+  ...NEW_ROLE_LABELS,
 }
 
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
-  const steps = ROLES[role as keyof typeof ROLES]?.steps || []
+  const [steps, setSteps] = useState<Step[]>([])
   const [idx, setIdx] = useState(0)
   const [stage, setStage] = useState<'ready' | 'station' | 'done'>('ready')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
@@ -115,7 +116,23 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   }
 
   async function beginAssessment() {
+    setOverlayMsg('Starting assessment…')
     await enterFullscreen()
+    try {
+      const res = await fetch('/api/attempt/begin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attemptId, role }),
+      })
+      const { stations, error } = await res.json()
+      if (error) throw new Error(error)
+      setSteps(buildSteps(stations as StationResult[]))
+    } catch (e) {
+      setOverlayMsg('')
+      alert('Could not load assessment questions. Please refresh and try again.')
+      return
+    }
+    setOverlayMsg('')
     setStage('station')
   }
 
@@ -312,7 +329,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
             The assessment will open in <b>fullscreen</b>. Switching tabs or exiting fullscreen will be logged as a violation.
           </p>
           <ul className={styles.readyList}>
-            <li>12 stations · ~40 minutes</li>
+            <li>9 stations · ~30 minutes</li>
             <li>Camera and microphone required</li>
             <li>Stay on this window throughout</li>
             <li>Do not refresh the page</li>

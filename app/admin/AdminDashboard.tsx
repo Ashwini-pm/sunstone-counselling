@@ -7,9 +7,14 @@ import { useRouter } from 'next/navigation'
 import { createTestLink, type FacultyRole } from './actions'
 import styles from './admin.module.css'
 
-const ROLES = [
+const ROLES: { key: FacultyRole; label: string }[] = [
   { key: 'java', label: 'B.Tech CS · Java' },
   { key: 'marketing', label: 'MBA · Marketing' },
+  { key: 'tech', label: 'Tech Faculty' },
+  { key: 'management', label: 'Management Faculty' },
+  { key: 'coding', label: 'Coding Trainer' },
+  { key: 'aptitude', label: 'Aptitude Trainer' },
+  { key: 'comms', label: 'Comms Trainer' },
 ]
 
 type Attempt = {
@@ -41,7 +46,7 @@ export default function AdminDashboard({
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
 
-  const [activeTab, setActiveTab] = useState<'java' | 'marketing'>('java')
+  const [activeTab, setActiveTab] = useState<FacultyRole>('java')
   const [role, setRole] = useState<FacultyRole>('java')
   const [candidateName, setCandidateName] = useState('')
   const [candidateEmail, setCandidateEmail] = useState('')
@@ -57,9 +62,9 @@ export default function AdminDashboard({
     router.push('/login')
   }
 
-  function switchTab(tab: 'java' | 'marketing') {
+  function switchTab(tab: FacultyRole) {
     setActiveTab(tab)
-    setRole(tab as FacultyRole)
+    setRole(tab)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -136,7 +141,7 @@ export default function AdminDashboard({
         return [
           t.candidates?.name || '',
           t.candidates?.email || '',
-          t.role === 'java' ? 'B.Tech CS · Java' : 'MBA · Marketing',
+          ROLES.find(r => r.key === t.role)?.label || t.role,
           status,
           score,
           verdict,
@@ -166,7 +171,7 @@ export default function AdminDashboard({
             <button
               key={r.key}
               className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
-              onClick={() => switchTab(r.key as 'java' | 'marketing')}
+              onClick={() => switchTab(r.key)}
             >
               {r.label}
             </button>
@@ -235,7 +240,7 @@ export default function AdminDashboard({
           <div className={styles.tabRow}>
             <div>
               <div className={styles.sectionHeading}>Recent Assessments</div>
-              <div className={styles.sectionSub}>Managing candidate evaluations for {activeTab === 'java' ? 'Java Specialization' : 'Marketing'}</div>
+              <div className={styles.sectionSub}>Managing candidate evaluations for {ROLES.find(r => r.key === activeTab)?.label}</div>
             </div>
             <div className={styles.tableActions}>
               <div className={styles.dateFilters}>

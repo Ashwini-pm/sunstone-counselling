@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { ROLES } from '@/lib/assessment-data'
 
-export type FacultyRole = 'marketing' | 'java'
+export type FacultyRole = 'marketing' | 'java' | 'tech' | 'management' | 'coding' | 'aptitude' | 'comms'
 
 export async function createTestLink(formData: FormData) {
   const supabase = await createClient()
