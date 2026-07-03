@@ -29,21 +29,9 @@ function fmt(s: number) {
   return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0')
 }
 
-const SOUNDWAVE_DELAYS = [0.1, 0.3, 0.2, 0.4, 0.15, 0.35, 0.05]
-
 const ROLE_LABELS: Record<string, string> = {
   java: 'B.Tech CS · Java',
   marketing: 'MBA · Marketing',
-}
-
-const AVATAR_STATIONS: Record<string, string[]> = {
-  java: ['intro','teach','twoway','doubt','wrong','difficult','dilemma','relevance','silent'],
-}
-
-function avatarSrc(role: string, stationId: string): string | null {
-  if (AVATAR_STATIONS[role]?.includes(stationId))
-    return `/api/avatar?role=${role}&station=${stationId}`
-  return null
 }
 
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
@@ -63,9 +51,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const [paused, setPaused] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [camError, setCamError] = useState('')
-
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const prefetchedRef = useRef<{ station: string; url: string } | null>(null)
 
   const [firedQueries, setFiredQueries] = useState<Set<number>>(new Set())
   const [liveQueries, setLiveQueries] = useState<Array<{ who: string; text: string }>>([])
@@ -127,15 +112,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   async function beginAssessment() {
     await enterFullscreen()
-    const firstStep = steps[0]
-    if (firstStep && avatarSrc(role, firstStep.id)) {
-      try {
-        const r = await fetch(`/api/avatar?role=${role}&station=${firstStep.id}&json=1`)
-        const { url } = await r.json()
-        prefetchedRef.current = { station: firstStep.id, url }
-        await preloadVideo(url)
-      } catch { /* fall through */ }
-    }
     setStage('station')
   }
 
@@ -155,37 +131,6 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     if (tickRef.current) clearInterval(tickRef.current)
   }, [idx])
 
-  useEffect(() => {
-    if (stage !== 'station') return
-    const currentStep = steps[idx]
-    if (!currentStep || !avatarSrc(role, currentStep.id)) {
-      setAvatarUrl(null)
-      return
-    }
-
-    // use prefetched URL if available
-    if (prefetchedRef.current?.station === currentStep.id) {
-      setAvatarUrl(prefetchedRef.current.url)
-      prefetchedRef.current = null
-    } else {
-      setAvatarUrl(null)
-      fetch(`/api/avatar?role=${role}&station=${currentStep.id}&json=1`)
-        .then(r => r.json())
-        .then(({ url }: { url: string }) => setAvatarUrl(url))
-        .catch(() => {})
-    }
-
-    // prefetch next station in background
-    const nextStep = steps[idx + 1]
-    if (nextStep && avatarSrc(role, nextStep.id)) {
-      fetch(`/api/avatar?role=${role}&station=${nextStep.id}&json=1`)
-        .then(r => r.json())
-        .then(({ url }: { url: string }) => {
-          prefetchedRef.current = { station: nextStep.id, url }
-        })
-        .catch(() => {})
-    }
-  }, [idx, stage])
 
   async function enableCamera() {
     setCamError('')
@@ -323,43 +268,10 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
     })
   }
 
-  async function preloadVideo(url: string): Promise<void> {
-    return new Promise(resolve => {
-      const vid = document.createElement('video')
-      vid.preload = 'auto'
-      vid.src = url
-      const done = () => { vid.src = ''; resolve() }
-      vid.addEventListener('canplay', done, { once: true })
-      vid.addEventListener('error', done, { once: true })
-      setTimeout(done, 6000)
-      vid.load()
-    })
-  }
-
   async function nextStation() {
     if (recording) stopRec()
     if (idx < steps.length - 1) {
-      setOverlayMsg('Saving response…')
-      const nextStep = steps[idx + 1]
-      if (avatarSrc(role, nextStep.id)) {
-        let url: string | null = null
-        if (prefetchedRef.current?.station === nextStep.id) {
-          url = prefetchedRef.current.url
-          prefetchedRef.current = null
-        } else {
-          try {
-            const r = await fetch(`/api/avatar?role=${role}&station=${nextStep.id}&json=1`)
-            const data = await r.json()
-            url = data.url
-          } catch { /* fall through */ }
-        }
-        if (url) {
-          await preloadVideo(url)
-          prefetchedRef.current = { station: nextStep.id, url }
-        }
-      }
       setIdx(i => i + 1)
-      setOverlayMsg('')
     } else {
       setOverlayMsg('Submitting assessment…')
       await fetch('/api/attempt/submit', {
@@ -474,161 +386,100 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         </div>
       </header>
 
-      {/* Main content */}
-      <main className={styles.mainContent}>
+      {/* 2-pane main */}
+      <main className={styles.twoPaneMain}>
 
-        {/* Question */}
-        <div className={styles.questionArea}>
-          <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: step.topic }} />
-          {isTeach && (
-            <div className={styles.qFeed}>
-              <div className={styles.qFeedLabel}>Live student doubts</div>
-              {liveQueries.length === 0
-                ? <div className={styles.qEmpty}>Doubts will appear as you teach.</div>
-                : liveQueries.map((q, i) => (
+        {/* LEFT: Question + Notepad */}
+        <div className={styles.leftPane}>
+          <div className={styles.questionBlock}>
+            <div className={styles.questionLabel}>Question</div>
+            <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: step.topic }} />
+            {isTeach && liveQueries.length > 0 && (
+              <div className={styles.qFeed}>
+                <div className={styles.qFeedLabel}>Live student doubts</div>
+                {liveQueries.map((q, i) => (
                   <div key={i} className={styles.qi}><b>{q.who}:</b> {q.text}</div>
-                ))
-              }
+                ))}
+              </div>
+            )}
+          </div>
+          <div className={styles.notepadBlock}>
+            <div className={styles.notepadLabel}>📝 Notes {isPlan ? '' : '(optional)'}</div>
+            <textarea
+              className={styles.notepadArea}
+              placeholder="Jot down key points before you start…"
+              value={planNotes[step.id] || ''}
+              onChange={e => setPlanNotes(prev => ({ ...prev, [step.id]: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        {/* RIGHT: Candidate video */}
+        <div className={styles.rightPane}>
+          <div className={styles.tileHeader}>
+            <span className={styles.tileLabel}>You</span>
+            {rec && !recording && (
+              <button className={styles.deleteBtn} onClick={redo}>🗑 Delete</button>
+            )}
+          </div>
+          <div className={`${styles.vidWrap} ${recording ? styles.vidWrapRecording : ''}`}>
+            <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
+            {!stream && (
+              <div className={styles.vidOff}>
+                <span style={{ fontSize: 40 }}>📷</span>
+                <span>Camera not enabled</span>
+              </div>
+            )}
+            {stream && !recording && !rec && (
+              <div className={styles.startOverlay}>
+                <button className={styles.startRecBtn} onClick={startRec}>⏺</button>
+                <span className={styles.startRecLabel}>Click to start recording</span>
+              </div>
+            )}
+            {recording && (
+              <>
+                <div className={styles.recBadge}>
+                  <span className={styles.recDot} />
+                  {paused ? 'PAUSED' : 'RECORDING'}
+                </div>
+                <div className={styles.elapsedBadge}>{fmt(elapsed)}</div>
+                <div className={styles.floatingControls}>
+                  <button className={styles.floatPauseBtn} onClick={togglePause}>
+                    {paused ? '▶' : '⏸'}
+                  </button>
+                  <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
+                </div>
+              </>
+            )}
+            {rec && !recording && (
+              <div className={styles.recDoneBadge}>
+                <div className={styles.recDoneCheck}>✓</div>
+                <span className={styles.recDoneLabel}>Recorded · {fmt(rec.durationSec)}</span>
+              </div>
+            )}
+            {flashQuery && (
+              <div className={styles.qFlash}>
+                <div className={styles.qWho}>✋ {flashQuery.who} asks</div>
+                <div className={styles.qTx}>{flashQuery.text}</div>
+              </div>
+            )}
+          </div>
+          {uploadStatus === 'uploading' && (
+            <div className={styles.uploadProgress}>
+              <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
+              <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%…</span>
             </div>
           )}
-        </div>
-
-        {/* Two video tiles */}
-        <div className={styles.videoRow}>
-
-          {/* Interviewer */}
-          <div className={styles.videoTile}>
-            <div className={styles.tileHeader}>
-              <span className={styles.tileLabel}>Amber · AI Interviewer</span>
-            </div>
-            {avatarSrc(role, step.id) ? (
-              <div className={styles.avatarVideoWrap}>
-                {avatarUrl && (
-                  <video
-                    key={step.id}
-                    className={styles.avatarVideo}
-                    src={avatarUrl}
-                    autoPlay
-                    playsInline
-                    preload="auto"
-                    onEnded={e => (e.currentTarget.currentTime = e.currentTarget.duration - 0.01)}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className={styles.avatarFallback}>
-                <div className={styles.avatarCircle}>🎓</div>
-                <div className={styles.avatarName}>Amber — AI Interviewer</div>
-                <div className={styles.soundwave}>
-                  {SOUNDWAVE_DELAYS.map((delay, i) => (
-                    <div key={i} className={styles.swBar} style={{ animationDelay: `${delay}s` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Candidate */}
-          <div className={styles.videoTile}>
-            <div className={styles.tileHeader}>
-              <span className={styles.tileLabel}>You</span>
-              <div className={styles.attemptsLeft}>
-                <span className={styles.attemptsLabel}>Attempts:</span>
-                <div className={styles.attemptDots}>
-                  <span className={`${styles.attemptDot} ${rec ? styles.attemptDotFilled : ''}`} />
-                  <span className={styles.attemptDot} />
-                  <span className={styles.attemptDot} />
-                </div>
-              </div>
-              {rec && !recording && (
-                <button className={styles.deleteBtn} onClick={redo}>🗑 Delete</button>
-              )}
-            </div>
-            <div className={`${styles.vidWrap} ${recording ? styles.vidWrapRecording : ''}`}>
-              <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
-              {!stream && (
-                <div className={styles.vidOff}>
-                  <span style={{ fontSize: 40 }}>📷</span>
-                  <span>Camera not enabled</span>
-                </div>
-              )}
-              {stream && !recording && !rec && (
-                <div className={styles.startOverlay}>
-                  <button className={styles.startRecBtn} onClick={startRec}>⏺</button>
-                  <span className={styles.startRecLabel}>Click to start recording</span>
-                </div>
-              )}
-              {recording && (
-                <>
-                  <div className={styles.recBadge}>
-                    <span className={styles.recDot} />
-                    {paused ? 'PAUSED' : 'RECORDING'}
-                  </div>
-                  <div className={styles.elapsedBadge}>{fmt(elapsed)}</div>
-                  <div className={styles.floatingControls}>
-                    <button className={styles.floatPauseBtn} onClick={togglePause}>
-                      {paused ? '▶' : '⏸'}
-                    </button>
-                    <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
-                  </div>
-                </>
-              )}
-              {rec && !recording && (
-                <div className={styles.recDoneBadge}>
-                  <div className={styles.recDoneCheck}>✓</div>
-                  <span className={styles.recDoneLabel}>Recorded · {fmt(rec.durationSec)}</span>
-                </div>
-              )}
-              {flashQuery && (
-                <div className={styles.qFlash}>
-                  <div className={styles.qWho}>✋ {flashQuery.who} asks</div>
-                  <div className={styles.qTx}>{flashQuery.text}</div>
-                </div>
-              )}
-            </div>
-            {uploadStatus === 'uploading' && (
-              <div className={styles.uploadProgress}>
-                <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
-                <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%…</span>
-              </div>
-            )}
-            {uploadStatus === 'error' && <div className={styles.uploadError}>Upload failed — delete and re-record</div>}
-            {uploadStatus === 'done' && !recording && (
-              <div className={styles.savedNote}>✓ Recording saved · {fmt(rec.durationSec)}</div>
-            )}
-            {!stream && !camError && (
-              <button className={styles.enableCamBtn} onClick={enableCamera}>
-                Enable camera &amp; microphone
-              </button>
-            )}
-            {camError && <div className={styles.camErr}>{camError}</div>}
-          </div>
-
-        </div>
-
-        {/* Notes */}
-        <div className={styles.notesArea}>
-          <div className={styles.planToggle}>
-            <button
-              className={styles.planToggleHeader}
-              onClick={() => setPlanOpen(o => !o)}
-            >
-              <span className={styles.planToggleLabel}>
-                📝 Written Plan {isPlan ? '' : '(optional)'}
-              </span>
-              <span className={`${styles.planChevron} ${planOpen ? styles.planChevronOpen : ''}`}>▾</span>
+          {uploadStatus === 'error' && <div className={styles.uploadError}>Upload failed — delete and re-record</div>}
+          {uploadStatus === 'done' && !recording && (
+            <div className={styles.savedNote}>✓ Recording saved · {fmt(rec.durationSec)}</div>
+          )}
+          {!stream && !camError && (
+            <button className={styles.enableCamBtn} onClick={enableCamera}>
+              Enable camera &amp; microphone
             </button>
-            {planOpen && (
-              <div className={styles.planBody}>
-                <textarea
-                  className={styles.planArea}
-                  placeholder="Jot down key points before you start…"
-                  value={planNotes[step.id] || ''}
-                  onChange={e => setPlanNotes(prev => ({ ...prev, [step.id]: e.target.value }))}
-                />
-              </div>
-            )}
-          </div>
+          )}
+          {camError && <div className={styles.camErr}>{camError}</div>}
         </div>
 
       </main>

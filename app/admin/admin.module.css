@@ -501,3 +501,19 @@
 .vpillMaybe { background: #fef3c7; color: #92400e; }
 
 .verdictText { font-size: 13px; color: var(--a-ink); font-variant-numeric: tabular-nums; }
+
+.actionGroup { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.copyTestBtn {
+  padding: 5px 12px;
+  border: 1px solid var(--a-line);
+  border-radius: 6px;
+  background: var(--a-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--a-slate);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+.copyTestBtn:hover { background: var(--a-surface-high); }

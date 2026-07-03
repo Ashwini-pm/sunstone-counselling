@@ -25,6 +25,61 @@
   color: var(--t-ink);
 }
 
+/* ── GATE WRAPPER (auth screens) ── */
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--t-bg);
+  padding: 24px;
+  font-family: 'Hanken Grotesk', -apple-system, sans-serif;
+  color: var(--t-ink);
+}
+
+.gateCard {
+  background: var(--t-white);
+  border: 1px solid var(--t-line);
+  border-radius: 16px;
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  text-align: center;
+}
+
+.gateError {
+  font-size: 13px;
+  color: var(--t-error);
+  margin-bottom: 12px;
+}
+
+.gateHint {
+  font-size: 12px;
+  color: var(--t-muted);
+  margin-top: 12px;
+}
+
+.googleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px;
+  border: 1px solid var(--t-line);
+  border-radius: 8px;
+  background: var(--t-white);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--t-ink);
+  cursor: pointer;
+  transition: background 0.12s;
+  width: 100%;
+  justify-content: center;
+}
+.googleBtn:hover:not(:disabled) { background: var(--t-surface-low); }
+.googleBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── READY SCREEN ── */
 .readyPage {
   min-height: 100vh;
@@ -276,40 +331,84 @@
 }
 .exitBtn:hover { background: var(--t-surface-high); }
 
-/* ── MAIN CONTENT ── */
-.mainContent {
+/* ── 2-PANE MAIN ── */
+.twoPaneMain {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  padding: 80px 40px 96px;
-  max-width: 1160px;
-  width: 100%;
-  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 0;
+  padding-top: 64px;
+  padding-bottom: 72px;
+  height: 100vh;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
-/* Question at top */
-.questionArea {
+/* LEFT pane */
+.leftPane {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px 24px 40px;
+  gap: 16px;
+  overflow-y: auto;
+  border-right: 1px solid var(--t-line);
+}
+
+.questionBlock {
   background: var(--t-white);
   border: 1px solid var(--t-line);
   border-radius: 12px;
-  padding: 18px 24px;
+  padding: 20px 24px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  flex-shrink: 0;
 }
 
-/* Two equal video tiles */
-.videoRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+.questionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
 }
 
-.videoTile {
+.notepadBlock {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-height: 180px;
+}
+
+.notepadLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t-muted);
+}
+
+.notepadArea {
+  flex: 1;
+  width: 100%;
+  border: 1px solid var(--t-line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--t-ink);
+  background: var(--t-white);
+  resize: none;
+  box-sizing: border-box;
+  min-height: 160px;
+}
+.notepadArea:focus { outline: none; border-color: var(--t-secondary); box-shadow: 0 0 0 3px rgba(0,101,145,0.1); }
+
+/* RIGHT pane */
+.rightPane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 40px 24px 20px;
+  overflow-y: auto;
 }
 
 .tileHeader {
@@ -325,11 +424,6 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   flex: 1;
-}
-
-/* Notes at bottom */
-.notesArea {
-  width: 100%;
 }
 
 /* Avatar fallback (no video) */

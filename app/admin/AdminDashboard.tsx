@@ -129,7 +129,7 @@ export default function AdminDashboard({
         const submitted = (t.attempts || []).filter(a => a.status === 'submitted')
         const status = submitted.length > 0 ? 'Submitted' : (t.attempts?.length > 0 ? 'In progress' : 'Pending')
         const latest = submitted.length > 0 ? submitted.reduce((a, b) => a.attempt_number > b.attempt_number ? a : b) : null
-        const score = latest?.reviewed && latest?.avgScore !== null ? String(latest.avgScore) : (latest?.totalInvites > 0 ? 'Pending' : '')
+        const score = latest?.reviewed && latest?.avgScore !== null ? String(latest.avgScore) : ((latest?.totalInvites ?? 0) > 0 ? 'Pending' : '')
         const reviewStatus = latest ? (latest.reviewed ? 'Done' : 'Pending') : ''
         const vc = latest?.verdictCounts
         const verdict = vc ? `✓${vc.yes} ✗${vc.no} ~${vc.maybe}` : ''
@@ -272,13 +272,14 @@ export default function AdminDashboard({
                     <th className={styles.center}>Review Status</th>
                     <th className={styles.center}>Attempts</th>
                     <th>Created</th>
+                    <th className={styles.center}>Test Link</th>
                     <th className={styles.right}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTests.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className={styles.emptyRow}>No candidates found</td>
+                      <td colSpan={9} className={styles.emptyRow}>No candidates found</td>
                     </tr>
                   ) : filteredTests.map(t => {
                     const latest = getLatestSubmitted(t.attempts || [])
@@ -293,7 +294,7 @@ export default function AdminDashboard({
                         <td className={styles.tdCenter}>
                           {latest?.reviewed && latest?.avgScore !== null
                             ? <span className={styles.scoreVal}>{latest.avgScore}<span className={styles.scoreSub}>/10</span></span>
-                            : latest?.totalInvites > 0
+                            : (latest?.totalInvites ?? 0) > 0
                               ? <span className={`${styles.pill} ${styles.grey}`}>Pending</span>
                               : <span className={styles.scoreDash}>—</span>}
                         </td>
@@ -310,6 +311,17 @@ export default function AdminDashboard({
                         </td>
                         <td>
                           {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className={styles.tdCenter}>
+                          <button
+                            className={styles.copyTestBtn}
+                            onClick={() => {
+                              const url = `${window.location.origin}/test/${t.id}/${t.candidates?.id}/1`
+                              navigator.clipboard.writeText(url)
+                            }}
+                          >
+                            Copy link
+                          </button>
                         </td>
                         <td className={styles.tdRight}>
                           {(t.attempts || []).filter(a => a.status === 'submitted').map(a => (
