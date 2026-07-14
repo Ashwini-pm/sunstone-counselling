@@ -122,27 +122,42 @@ export default async function CandidateProfilePage({
 
       {/* Hero */}
       <div className={styles.hero}>
-        <div className={styles.heroGlow} />
-        <div className={styles.heroAvatar}>{initials}</div>
-        <h1 className={styles.heroName}>{candidate.name}</h1>
-        <p className={styles.heroEmail}>{candidate.email}</p>
-        <div className={styles.heroBadges}>
-          {allTests.map(t => (
-            <span key={t.id} className={styles.heroBadge}>
-              <span className={styles.heroBadgeDot} />
-              {roleLabel(t.role)}
-            </span>
-          ))}
-          {totalSubmitted > 0 && (
-            <span className={styles.heroBadge}>
-              {totalSubmitted} Assessment{totalSubmitted !== 1 ? 's' : ''} Submitted
-            </span>
-          )}
-          {overallAvg !== null && (
-            <span className={styles.heroBadge}>
-              Avg Score {overallAvg}/10
-            </span>
-          )}
+        <div className={styles.heroInner}>
+          {/* Avatar */}
+          <div className={styles.avatarBlock}>
+            <div className={styles.avatarGlow} />
+            <div className={styles.heroAvatar}>{initials}</div>
+          </div>
+
+          {/* Text */}
+          <div className={styles.heroText}>
+            <h1 className={styles.heroName}>{candidate.name}</h1>
+            <p className={styles.heroEmail}>{candidate.email}</p>
+            <div className={styles.heroBadges}>
+              {allTests.map(t => (
+                <span key={t.id} className={styles.heroBadge}>
+                  <span className={styles.heroBadgeDot} />
+                  {roleLabel(t.role)}
+                </span>
+              ))}
+            </div>
+            <div className={styles.heroStats}>
+              <div className={styles.heroStat}>
+                <div className={styles.heroStatNum}>{allTests.length}</div>
+                <div className={styles.heroStatLbl}>Roles</div>
+              </div>
+              <div className={styles.heroStat}>
+                <div className={styles.heroStatNum}>{totalSubmitted}</div>
+                <div className={styles.heroStatLbl}>Submitted</div>
+              </div>
+              {overallAvg !== null && (
+                <div className={styles.heroStat}>
+                  <div className={styles.heroStatNum}>{overallAvg}</div>
+                  <div className={styles.heroStatLbl}>Avg Score</div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
