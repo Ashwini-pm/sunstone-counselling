@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { ROLES, NEW_ROLE_LABELS } from '@/lib/assessment-data'
+import styles from './candidate.module.css'
 
 function roleLabel(role: string): string {
   if (ROLES[role as keyof typeof ROLES]) return ROLES[role as keyof typeof ROLES].label
@@ -11,6 +12,10 @@ function roleLabel(role: string): string {
 function fmt(secs: number) {
   const m = Math.floor(secs / 60), s = secs % 60
   return `${m}m ${String(s).padStart(2, '0')}s`
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default async function CandidateProfilePage({
@@ -38,7 +43,6 @@ export default async function CandidateProfilePage({
     .eq('candidate_id', candidateId)
     .order('created_at', { ascending: false })
 
-  // For each submitted attempt, fetch reviewer scores
   const submittedAttemptIds = (tests ?? []).flatMap(t =>
     (t.attempts as any[]).filter(a => a.status === 'submitted').map((a: any) => a.id)
   )
@@ -92,94 +96,190 @@ export default async function CandidateProfilePage({
   }
 
   const initials = candidate.name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+  const allTests = tests ?? []
+  const totalSubmitted = submittedAttemptIds.length
+  const reviewedScores = Object.values(avgScoreMap).filter(v => v !== null) as number[]
+  const overallAvg = reviewedScores.length > 0
+    ? Math.round((reviewedScores.reduce((a, b) => a + b, 0) / reviewedScores.length) * 10) / 10
+    : null
+
+  // Count all verdicts across all attempts
+  const globalVerdicts = { yes: 0, no: 0, maybe: 0 }
+  for (const vMap of Object.values(verdictMap)) {
+    for (const v of Object.values(vMap)) {
+      if (v === 'yes' || v === 'no' || v === 'maybe') globalVerdicts[v]++
+    }
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f9fb', fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}>
-      <header style={{ background: '#fff', borderBottom: '1px solid rgba(198,198,205,0.3)', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <img src="/sunstone-logo.svg" alt="Sunstone" style={{ height: 20 }} />
-        <span style={{ fontSize: 13, color: '#76777d' }}>Candidate Profile</span>
+    <div className={styles.page}>
+      {/* Nav */}
+      <header className={styles.nav}>
+        <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.navLogo} />
+        <span className={styles.navSep}>/</span>
+        <span className={styles.navCrumb}>Candidate Profile</span>
       </header>
 
-      <main style={{ maxWidth: 720, margin: '40px auto', padding: '0 24px' }}>
-        {/* Candidate header */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: '32px', marginBottom: 20, border: '1px solid rgba(198,198,205,0.2)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, flexShrink: 0 }}>
-            {initials}
-          </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#191c1e' }}>{candidate.name}</div>
-            <div style={{ fontSize: 14, color: '#76777d', marginTop: 4 }}>{candidate.email}</div>
-          </div>
+      {/* Hero */}
+      <div className={styles.hero}>
+        <div className={styles.heroGlow} />
+        <div className={styles.heroAvatar}>{initials}</div>
+        <h1 className={styles.heroName}>{candidate.name}</h1>
+        <p className={styles.heroEmail}>{candidate.email}</p>
+        <div className={styles.heroBadges}>
+          {allTests.map(t => (
+            <span key={t.id} className={styles.heroBadge}>
+              <span className={styles.heroBadgeDot} />
+              {roleLabel(t.role)}
+            </span>
+          ))}
+          {totalSubmitted > 0 && (
+            <span className={styles.heroBadge}>
+              {totalSubmitted} Assessment{totalSubmitted !== 1 ? 's' : ''} Submitted
+            </span>
+          )}
+          {overallAvg !== null && (
+            <span className={styles.heroBadge}>
+              Avg Score {overallAvg}/10
+            </span>
+          )}
         </div>
+      </div>
 
-        {/* Assessment history */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#76777d', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>
-          Assessment History
-        </div>
-        {(tests ?? []).length === 0 ? (
-          <div style={{ background: '#fff', borderRadius: 12, padding: 32, textAlign: 'center', color: '#76777d', border: '1px solid rgba(198,198,205,0.2)' }}>
-            No assessments yet.
-          </div>
-        ) : (tests ?? []).map((t: any) => {
-          const latestAttempt = (t.attempts as any[]).length > 0
-            ? (t.attempts as any[]).reduce((a: any, b: any) => a.attempt_number > b.attempt_number ? a : b)
-            : null
-          const submitted = (t.attempts as any[]).filter(a => a.status === 'submitted')
-          const latestSubmitted = submitted.length > 0 ? submitted.reduce((a: any, b: any) => a.attempt_number > b.attempt_number ? a : b) : null
-          const totalInvites = latestSubmitted ? (inviteMap[latestSubmitted.id] ?? 0) : 0
-          const verdicts = latestSubmitted ? (verdictMap[latestSubmitted.id] ?? {}) : {}
-          const vc = { yes: 0, no: 0, maybe: 0 }
-          for (const v of Object.values(verdicts)) {
-            if (v === 'yes' || v === 'no' || v === 'maybe') vc[v]++
-          }
-          const avgScore = latestSubmitted ? avgScoreMap[latestSubmitted.id] : null
-          const reviewed = totalInvites > 0 && Object.keys(verdicts).length >= totalInvites
+      {/* Body */}
+      <div className={styles.body}>
+        {/* Left: assessment cards */}
+        <div>
+          <div className={styles.sectionLabel}>Assessment History</div>
+          {allTests.length === 0 ? (
+            <div className={styles.emptyState}>No assessments yet.</div>
+          ) : allTests.map((t: any) => {
+            const attempts = t.attempts as any[]
+            const latestAttempt = attempts.length > 0
+              ? attempts.reduce((a: any, b: any) => a.attempt_number > b.attempt_number ? a : b)
+              : null
+            const submitted = attempts.filter(a => a.status === 'submitted')
+            const latestSubmitted = submitted.length > 0
+              ? submitted.reduce((a: any, b: any) => a.attempt_number > b.attempt_number ? a : b)
+              : null
+            const totalInvites = latestSubmitted ? (inviteMap[latestSubmitted.id] ?? 0) : 0
+            const verdicts = latestSubmitted ? (verdictMap[latestSubmitted.id] ?? {}) : {}
+            const vc = { yes: 0, no: 0, maybe: 0 }
+            for (const v of Object.values(verdicts)) {
+              if (v === 'yes' || v === 'no' || v === 'maybe') vc[v]++
+            }
+            const avgScore = latestSubmitted ? avgScoreMap[latestSubmitted.id] : null
+            const reviewed = totalInvites > 0 && Object.keys(verdicts).length >= totalInvites
 
-          return (
-            <div key={t.id} style={{ background: '#fff', borderRadius: 12, padding: '24px 28px', marginBottom: 12, border: '1px solid rgba(198,198,205,0.2)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#191c1e' }}>{roleLabel(t.role)}</div>
-                  <div style={{ fontSize: 13, color: '#76777d', marginTop: 4 }}>
-                    Created {new Date(t.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {' · '}{(t.attempts as any[]).length} attempt{(t.attempts as any[]).length !== 1 ? 's' : ''}
-                    {latestSubmitted?.total_duration_sec && <> · ⏱ {fmt(latestSubmitted.total_duration_sec)}</>}
+            const statusClass = !latestAttempt || latestAttempt.status !== 'submitted'
+              ? styles.statusProgress
+              : styles.statusSubmitted
+
+            const statusLabel = !latestAttempt
+              ? 'PENDING'
+              : latestAttempt.status !== 'submitted' ? 'IN PROGRESS' : 'SUBMITTED'
+
+            return (
+              <div key={t.id} className={styles.assessmentCard}>
+                <div className={styles.assessmentTop}>
+                  <div>
+                    <div className={styles.assessmentRole}>{roleLabel(t.role)}</div>
+                    <div className={styles.assessmentMeta}>
+                      <span>{fmtDate(t.created_at)}</span>
+                      <span className={styles.metaDot}>·</span>
+                      <span>{attempts.length} attempt{attempts.length !== 1 ? 's' : ''}</span>
+                      {latestSubmitted?.total_duration_sec && (
+                        <>
+                          <span className={styles.metaDot}>·</span>
+                          <span>⏱ {fmt(latestSubmitted.total_duration_sec)}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  <span className={`${styles.statusBadge} ${statusClass}`}>{statusLabel}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {!latestAttempt || latestAttempt.status !== 'submitted' ? (
-                    <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', background: '#fef3c7', color: '#b45309' }}>
-                      {latestAttempt ? 'IN PROGRESS' : 'PENDING'}
-                    </span>
-                  ) : (
-                    <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', background: '#dcfce7', color: '#15803d' }}>
-                      SUBMITTED
-                    </span>
-                  )}
-                  {latestSubmitted && (
-                    reviewed ? (
+
+                {avgScore !== null && (
+                  <div className={styles.scoreSection}>
+                    <div className={styles.scoreRow}>
+                      <span className={styles.scoreLabel}>Reviewer score</span>
+                      <div className={styles.scoreBar}>
+                        <div className={styles.scoreBarFill} style={{ width: `${(avgScore / 10) * 100}%` }} />
+                      </div>
+                      <span className={styles.scoreVal}>{avgScore}/10</span>
+                    </div>
+                  </div>
+                )}
+
+                {latestSubmitted && (
+                  <div className={styles.verdictRow}>
+                    {reviewed ? (
                       <>
-                        {avgScore !== null && (
-                          <span style={{ padding: '4px 12px', borderRadius: 6, fontSize: 13, fontWeight: 700, background: 'rgba(201,230,255,0.3)', color: '#006591', border: '1px solid #c9e6ff' }}>
-                            {avgScore}/10
-                          </span>
-                        )}
-                        <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#f2f4f6', color: '#45464d' }}>
-                          {vc.yes > 0 && `✓${vc.yes} `}{vc.no > 0 && `✗${vc.no} `}{vc.maybe > 0 && `~${vc.maybe}`}
-                        </span>
+                        {vc.yes > 0 && <span className={`${styles.verdictChip} ${styles.vc_yes}`}>✓ Yes ×{vc.yes}</span>}
+                        {vc.no > 0 && <span className={`${styles.verdictChip} ${styles.vc_no}`}>✗ No ×{vc.no}</span>}
+                        {vc.maybe > 0 && <span className={`${styles.verdictChip} ${styles.vc_maybe}`}>~ Maybe ×{vc.maybe}</span>}
                       </>
                     ) : (
-                      <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: '#f2f4f6', color: '#76777d' }}>
-                        {totalInvites > 0 ? 'REVIEW PENDING' : 'NO REVIEWERS'}
+                      <span className={`${styles.verdictChip} ${styles.vc_pending}`}>
+                        {totalInvites > 0 ? 'Review pending' : 'No reviewers assigned'}
                       </span>
-                    )
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Right: summary sidebar */}
+        <div className={styles.sidebar}>
+          <div className={styles.sideCard}>
+            <div className={styles.sideCardTitle}>Overview</div>
+            <div className={styles.statGrid}>
+              <div className={styles.statItem}>
+                <div className={styles.statNum}>{allTests.length}</div>
+                <div className={styles.statLbl}>Roles</div>
+              </div>
+              <div className={styles.statItem}>
+                <div className={styles.statNum}>{totalSubmitted}</div>
+                <div className={styles.statLbl}>Submitted</div>
+              </div>
+              <div className={styles.statItem}>
+                <div className={styles.statNum}>{overallAvg ?? '—'}</div>
+                <div className={styles.statLbl}>Avg Score</div>
+              </div>
+              <div className={styles.statItem}>
+                <div className={styles.statNum}>{globalVerdicts.yes + globalVerdicts.no + globalVerdicts.maybe}</div>
+                <div className={styles.statLbl}>Reviews</div>
               </div>
             </div>
-          )
-        })}
-      </main>
+          </div>
+
+          {(globalVerdicts.yes + globalVerdicts.no + globalVerdicts.maybe) > 0 && (
+            <div className={styles.sideCard}>
+              <div className={styles.sideCardTitle}>Verdicts</div>
+              {globalVerdicts.yes > 0 && (
+                <div className={styles.verdictSummaryRow}>
+                  <span className={styles.verdictSummaryLabel}>✓ Selected</span>
+                  <span className={styles.verdictSummaryVal}>{globalVerdicts.yes}</span>
+                </div>
+              )}
+              {globalVerdicts.maybe > 0 && (
+                <div className={styles.verdictSummaryRow}>
+                  <span className={styles.verdictSummaryLabel}>~ Maybe</span>
+                  <span className={styles.verdictSummaryVal}>{globalVerdicts.maybe}</span>
+                </div>
+              )}
+              {globalVerdicts.no > 0 && (
+                <div className={styles.verdictSummaryRow}>
+                  <span className={styles.verdictSummaryLabel}>✗ Not selected</span>
+                  <span className={styles.verdictSummaryVal}>{globalVerdicts.no}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
