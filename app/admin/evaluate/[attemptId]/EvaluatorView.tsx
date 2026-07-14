@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useTransition } from 'react'
+import { useState, useRef, useEffect, useTransition, forwardRef, useImperativeHandle } from 'react'
+import type { Query } from '@/lib/assessment-data'
 import Link from 'next/link'
 import type { Step } from '@/lib/assessment-data'
 import { inviteReviewer } from '@/app/admin/actions'
@@ -13,6 +14,7 @@ interface ReviewerScore { reviewer_invite_id: string; station_id: string; evalua
 
 interface Props {
   attemptId: string
+  candidateId: string
   candidateName: string
   candidateEmail: string
   roleName: string
@@ -66,12 +68,27 @@ function RadioEmptyIcon() {
   )
 }
 
-function VideoPlayer({ src, durationSec }: { src: string; durationSec: number }) {
+const POPUP_DURATION = 6000
+
+const VideoPlayer = forwardRef<{ seekTo: (t: number) => void }, { src: string; durationSec: number; queries?: Query[] }>(
+  function VideoPlayer({ src, durationSec, queries }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const seekRef = useRef<HTMLInputElement>(null)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(false)
   const [current, setCurrent] = useState(0)
+  const [visiblePopups, setVisiblePopups] = useState<Query[]>([])
+  const shownAt = useRef<Set<number>>(new Set())
+
+  useImperativeHandle(ref, () => ({
+    seekTo(t: number) {
+      const v = videoRef.current
+      if (!v) return
+      v.currentTime = t
+      if (seekRef.current) seekRef.current.value = String(t)
+      setCurrent(t)
+    }
+  }))
 
   useEffect(() => {
     const v = videoRef.current
@@ -80,20 +97,34 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
     setCurrent(0)
     v.pause()
     v.load()
+    shownAt.current = new Set()
+    setVisiblePopups([])
   }, [src])
 
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
     const onTime = () => {
-      setCurrent(v.currentTime)
-      if (seekRef.current) seekRef.current.value = String(v.currentTime)
+      const t = v.currentTime
+      setCurrent(t)
+      if (seekRef.current) seekRef.current.value = String(t)
+      if (queries) {
+        for (const q of queries) {
+          if (t >= q.at && !shownAt.current.has(q.at)) {
+            shownAt.current.add(q.at)
+            setVisiblePopups(prev => [...prev, q])
+            setTimeout(() => {
+              setVisiblePopups(prev => prev.filter(p => p.at !== q.at))
+            }, POPUP_DURATION)
+          }
+        }
+      }
     }
     const onEnded = () => setPlaying(false)
     v.addEventListener('timeupdate', onTime)
     v.addEventListener('ended', onEnded)
     return () => { v.removeEventListener('timeupdate', onTime); v.removeEventListener('ended', onEnded) }
-  }, [])
+  }, [queries])
 
   function togglePlay() {
     const v = videoRef.current!
@@ -111,6 +142,15 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
   return (
     <div className={styles.videoWrap}>
       <video ref={videoRef} className={styles.video} src={src} preload="none" />
+      {visiblePopups.length > 0 && (
+        <div className={styles.doubtOverlay}>
+          {visiblePopups.map((q, i) => (
+            <div key={i} className={styles.doubtPopup}>
+              <span className={styles.doubtPopupWho}>{q.who}</span>{q.text}
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.playerControls}>
         <input
           ref={seekRef}
@@ -141,7 +181,7 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
       </div>
     </div>
   )
-}
+})
 
 function fmtDuration(secs: number) {
   const m = Math.floor(secs / 60), s = secs % 60
@@ -163,6 +203,21 @@ export default function EvaluatorView(props: Props) {
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<Set<string>>(new Set())
 
+  function copyText(text: string, onDone?: () => void) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(onDone).catch(() => fallbackCopy(text, onDone))
+    } else {
+      fallbackCopy(text, onDone)
+    }
+  }
+  function fallbackCopy(text: string, onDone?: () => void) {
+    const ta = document.createElement('textarea')
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.focus(); ta.select()
+    document.execCommand('copy'); document.body.removeChild(ta)
+    onDone?.()
+  }
+
   // Reviewer invite state
   const [invites, setInvites] = useState<ReviewerInvite[]>(props.reviewerInvites)
   const [reviewerName, setReviewerName] = useState('')
@@ -170,6 +225,8 @@ export default function EvaluatorView(props: Props) {
   const [inviteLink, setInviteLink] = useState('')
   const [inviteError, setInviteError] = useState('')
   const [copiedInvite, setCopiedInvite] = useState(false)
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null)
+  const [copiedProfile, setCopiedProfile] = useState(false)
   const [isPendingInvite, startInviteTransition] = useTransition()
   const [selectedReviewerId, setSelectedReviewerId] = useState<string | null>(null)
 
@@ -233,10 +290,8 @@ export default function EvaluatorView(props: Props) {
     })
   }
 
-  async function copyInvite() {
-    await navigator.clipboard.writeText(inviteLink)
-    setCopiedInvite(true)
-    setTimeout(() => setCopiedInvite(false), 2000)
+  function copyInvite() {
+    copyText(inviteLink, () => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000) })
   }
 
   function setScore(stationId: string, rubricKey: string, val: number) {
@@ -299,6 +354,7 @@ function overallAvg(): number | null {
   const displayViolations = Math.min(props.violationCount, 3)
   const overall = overallAvg()
 
+  const videoPlayerRef = useRef<{ seekTo: (t: number) => void }>(null)
   const activeStep = props.steps[activeIdx]
   const activeRec = activeStep ? recMap[activeStep.id] : null
   const activeEntry = activeStep ? (scoreMap[activeStep.id] || { scores: {}, notes: '' }) : { scores: {}, notes: '' }
@@ -344,6 +400,17 @@ function overallAvg(): number | null {
               </div>
             </div>
             <div className={styles.badges}>
+              <button
+                type="button"
+                className={`${styles.badge} ${styles.badgeGrey}`}
+                style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}
+                onClick={() => {
+                  const url = `${window.location.origin}/candidate/${props.candidateId}`
+                  copyText(url, () => { setCopiedProfile(true); setTimeout(() => setCopiedProfile(false), 2000) })
+                }}
+              >
+                {copiedProfile ? '✓ Profile link copied' : '↗ Share profile'}
+              </button>
               {props.isFlagged && (
                 <span className={`${styles.badge} ${styles.badgeAmber}`}>Flagged</span>
               )}
@@ -424,7 +491,7 @@ function overallAvg(): number | null {
                   {inviteLink && (
                     <div className={styles.inviteLinkBox}>
                       <code className={styles.inviteLinkText}>{inviteLink}</code>
-                      <button className={styles.inviteCopyBtn} onClick={copyInvite}>
+                      <button type="button" className={styles.inviteCopyBtn} onClick={copyInvite}>
                         {copiedInvite ? '✓ Copied' : 'Copy'}
                       </button>
                     </div>
@@ -442,8 +509,8 @@ function overallAvg(): number | null {
                             </div>
                             <div className={styles.inviteLinkBox}>
                               <code className={styles.inviteLinkText}>{link}</code>
-                              <button className={styles.inviteCopyBtn} onClick={() => navigator.clipboard.writeText(link)}>
-                                Copy
+                              <button type="button" className={styles.inviteCopyBtn} onClick={() => copyText(link, () => { setCopiedInviteId(inv.id); setTimeout(() => setCopiedInviteId(id => id === inv.id ? null : id), 2000) })}>
+                                {copiedInviteId === inv.id ? '✓ Copied' : 'Copy'}
                               </button>
                             </div>
                             <span className={`${styles.verdictChip} ${v ? styles[`vc_${v}`] : styles.vc_pending}`}>
@@ -467,10 +534,29 @@ function overallAvg(): number | null {
                 {/* Video */}
                 <div className={styles.videoArea}>
                   {activeRec
-                    ? <VideoPlayer src={activeRec.r2_url} durationSec={activeRec.duration_sec} />
+                    ? <VideoPlayer ref={videoPlayerRef} src={activeRec.r2_url} durationSec={activeRec.duration_sec} queries={activeStep.queries} />
                     : <div className={styles.noVideo}>No recording for this station</div>
                   }
                 </div>
+
+                {/* Live doubts */}
+                {activeStep.queries && activeStep.queries.length > 0 && (
+                  <div className={styles.doubtsList}>
+                    <div className={styles.doubtsLabel}>Live doubts during session</div>
+                    {activeStep.queries.map((q, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={styles.doubtChip}
+                        onClick={() => videoPlayerRef.current?.seekTo(q.at)}
+                      >
+                        <span className={styles.doubtTime}>{fmt(q.at)}</span>
+                        <span className={styles.doubtWho}>{q.who}:</span>
+                        <span className={styles.doubtText}>{q.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Reviewer overall verdicts */}
                 {invites.length > 0 && (

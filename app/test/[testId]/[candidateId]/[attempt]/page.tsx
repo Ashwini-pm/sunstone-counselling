@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { ROLES } from '@/lib/assessment-data'
 import { notFound } from 'next/navigation'
 import TestGate from './TestGate'
 
@@ -39,9 +38,6 @@ export default async function TestPage({
     .single()
 
   if (!candidate) notFound()
-
-  const role = ROLES[test.role as keyof typeof ROLES]
-  if (!role) notFound()
 
   // check if already submitted for this attempt number
   const { data: existingAttempt } = await supabase

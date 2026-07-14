@@ -106,13 +106,46 @@
 .stationTitle { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
 .stationBlurb { font-size: 14px; color: var(--r-slate); margin: 0; }
 
-.videoArea { }
+.videoArea { max-width: 620px; }
 .videoWrap {
   background: #0d0e14;
   border-radius: 12px;
   overflow: hidden;
+  position: relative;
 }
 .video { width: 100%; aspect-ratio: 16/9; display: block; }
+
+.doubtOverlay {
+  position: absolute;
+  bottom: 56px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.doubtPopup {
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+  border-left: 3px solid #38bdf8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: slideUp 0.25s ease;
+}
+.doubtPopupWho {
+  font-weight: 700;
+  color: #38bdf8;
+  margin-right: 6px;
+  font-size: 12px;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .playerControls {
   padding: 10px 16px 14px;
   display: flex;
@@ -166,6 +199,19 @@
   margin-bottom: 8px;
 }
 .questionText { font-size: 15px; line-height: 1.6; margin: 0; color: var(--r-ink); }
+
+.doubtsList { margin-top: 16px; border-top: 1px solid var(--r-line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.doubtsLabel { font-size: 11px; font-weight: 700; color: var(--r-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.doubtChip {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: #f7f9fb; border: 1px solid var(--r-line); border-radius: 8px;
+  padding: 10px 12px; text-align: left; cursor: pointer; width: 100%;
+  font-family: inherit; transition: background 0.12s;
+}
+.doubtChip:hover { background: #eef2f7; }
+.doubtTime { font-size: 11px; font-weight: 700; color: #006591; flex-shrink: 0; padding-top: 1px; }
+.doubtWho { font-size: 13px; font-weight: 600; color: #45464d; flex-shrink: 0; }
+.doubtText { font-size: 13px; color: #191c1e; line-height: 1.4; }
 
 .rubricBox {
   background: var(--r-white);

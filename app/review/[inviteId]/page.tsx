@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { ROLES } from '@/lib/assessment-data'
+import { ROLES, NEW_ROLE_LABELS, buildSteps } from '@/lib/assessment-data'
+import type { Step } from '@/lib/assessment-data'
 import { getS3SignedUrl } from '@/lib/s3'
 import { notFound } from 'next/navigation'
 import ReviewerView from './ReviewerView'
@@ -14,11 +15,9 @@ export default async function ReviewPage({
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: invite } = await supabase
-    .from('reviewer_invites')
-    .select('id, name, email, attempt_id')
-    .eq('id', inviteId)
-    .single()
+  // Use SECURITY DEFINER RPC so wrong-email users get the "wrong account" screen
+  const { data: inviteRows } = await supabase.rpc('get_reviewer_invite', { invite_id: inviteId })
+  const invite = inviteRows?.[0] ?? null
 
   if (!invite) notFound()
 
@@ -67,8 +66,36 @@ export default async function ReviewPage({
     supabase.from('tests').select('role').eq('id', attempt.test_id).single(),
   ])
 
-  const role = test?.role ? ROLES[test.role as keyof typeof ROLES] : null
-  if (!role) notFound()
+  const rawRole = test?.role ?? ''
+
+  const { data: aqRows } = await supabase
+    .from('attempt_questions')
+    .select('station_id, position, question_id, questions(content, doubts)')
+    .eq('attempt_id', invite.attempt_id)
+    .order('position', { ascending: true })
+
+  const legacyRole = ROLES[rawRole as keyof typeof ROLES]
+  const newRoleLabel = NEW_ROLE_LABELS[rawRole as keyof typeof NEW_ROLE_LABELS]
+
+  if (!legacyRole && !newRoleLabel) { notFound(); return null as never }
+
+  const roleLabel: string = legacyRole ? legacyRole.label : newRoleLabel
+
+  let steps: Step[]
+  if (aqRows && aqRows.length > 0) {
+    steps = buildSteps(aqRows.map((r: any) => {
+      const q = Array.isArray(r.questions) ? r.questions[0] : r.questions
+      return {
+        stationId: r.station_id,
+        position: r.position,
+        questionId: r.question_id,
+        content: q?.content ?? null,
+        doubts: q?.doubts ?? null,
+      }
+    }))
+  } else {
+    steps = legacyRole ? legacyRole.steps : []
+  }
 
   const signedRecordings = await Promise.all(
     (recordings || []).map(async r => {
@@ -92,9 +119,9 @@ export default async function ReviewPage({
       inviteId={inviteId}
       reviewerName={invite.name}
       candidateName={candidate?.name || 'Candidate'}
-      roleName={role.label}
+      roleName={roleLabel}
       attemptNumber={attempt.attempt_number}
-      steps={role.steps}
+      steps={steps}
       recordings={signedRecordings}
       initialVerdicts={verdictMap}
       initialScores={scoresMap}

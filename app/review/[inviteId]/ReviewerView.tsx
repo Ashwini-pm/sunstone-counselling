@@ -26,30 +26,64 @@ function fmt(secs: number) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-function VideoPlayer({ src, durationSec }: { src: string; durationSec: number }) {
+import { forwardRef, useImperativeHandle } from 'react'
+import type { Query } from '@/lib/assessment-data'
+
+const POPUP_DURATION = 6000 // ms each doubt stays visible
+
+const VideoPlayer = forwardRef<
+  { seekTo: (t: number) => void },
+  { src: string; durationSec: number; queries?: Query[] }
+>(function VideoPlayer({ src, durationSec, queries }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const seekRef = useRef<HTMLInputElement>(null)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
+  const [visiblePopups, setVisiblePopups] = useState<Query[]>([])
+  const shownAt = useRef<Set<number>>(new Set())
+
+  useImperativeHandle(ref, () => ({
+    seekTo(t: number) {
+      const v = videoRef.current
+      if (!v) return
+      v.currentTime = t
+      if (seekRef.current) seekRef.current.value = String(t)
+      setCurrent(t)
+    }
+  }))
 
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
     setPlaying(false); setCurrent(0); v.pause(); v.load()
+    shownAt.current = new Set()
+    setVisiblePopups([])
   }, [src])
 
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
     const onTime = () => {
-      setCurrent(v.currentTime)
-      if (seekRef.current) seekRef.current.value = String(v.currentTime)
+      const t = v.currentTime
+      setCurrent(t)
+      if (seekRef.current) seekRef.current.value = String(t)
+      if (queries) {
+        for (const q of queries) {
+          if (t >= q.at && !shownAt.current.has(q.at)) {
+            shownAt.current.add(q.at)
+            setVisiblePopups(prev => [...prev, q])
+            setTimeout(() => {
+              setVisiblePopups(prev => prev.filter(p => p.at !== q.at))
+            }, POPUP_DURATION)
+          }
+        }
+      }
     }
     const onEnded = () => setPlaying(false)
     v.addEventListener('timeupdate', onTime)
     v.addEventListener('ended', onEnded)
     return () => { v.removeEventListener('timeupdate', onTime); v.removeEventListener('ended', onEnded) }
-  }, [])
+  }, [queries])
 
   function togglePlay() {
     const v = videoRef.current!
@@ -59,6 +93,15 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
   return (
     <div className={styles.videoWrap}>
       <video ref={videoRef} className={styles.video} src={src} preload="none" />
+      {visiblePopups.length > 0 && (
+        <div className={styles.doubtOverlay}>
+          {visiblePopups.map((q, i) => (
+            <div key={i} className={styles.doubtPopup}>
+              <span className={styles.doubtPopupWho}>{q.who}</span>{q.text}
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.playerControls}>
         <input
           ref={seekRef}
@@ -79,7 +122,7 @@ function VideoPlayer({ src, durationSec }: { src: string; durationSec: number })
       </div>
     </div>
   )
-}
+})
 
 function fmtDuration(secs: number) {
   const m = Math.floor(secs / 60), s = secs % 60
@@ -91,6 +134,7 @@ export default function ReviewerView({
   steps, recordings, initialVerdicts, initialScores, totalDurationSec,
 }: Props) {
   const recMap = Object.fromEntries(recordings.map(r => [r.station_id, r]))
+  const videoPlayerRef = useRef<{ seekTo: (t: number) => void }>(null)
   const [scores, setScores] = useState<Record<string, Record<string, number>>>(initialScores)
   const [saving, setSaving] = useState(false)
   const [savingScore, setSavingScore] = useState<string | null>(null)
@@ -185,7 +229,7 @@ export default function ReviewerView({
 
                 <div className={styles.videoArea}>
                   {activeRec
-                    ? <VideoPlayer src={activeRec.r2_url} durationSec={activeRec.duration_sec} />
+                    ? <VideoPlayer ref={videoPlayerRef} src={activeRec.r2_url} durationSec={activeRec.duration_sec} queries={activeStep.queries} />
                     : <div className={styles.noVideo}>No recording for this station</div>
                   }
                 </div>
@@ -193,6 +237,23 @@ export default function ReviewerView({
                 <div className={styles.questionBox}>
                   <div className={styles.questionLabel}>Question asked</div>
                   <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: activeStep.topic }} />
+                  {activeStep.queries && activeStep.queries.length > 0 && (
+                    <div className={styles.doubtsList}>
+                      <div className={styles.doubtsLabel}>Live doubts during session</div>
+                      {activeStep.queries.map((q, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className={styles.doubtChip}
+                          onClick={() => videoPlayerRef.current?.seekTo(q.at)}
+                        >
+                          <span className={styles.doubtTime}>{fmt(q.at)}</span>
+                          <span className={styles.doubtWho}>{q.who}:</span>
+                          <span className={styles.doubtText}>{q.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {activeStep.rubric.length > 0 && (

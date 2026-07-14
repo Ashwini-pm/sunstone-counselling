@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { ROLES } from '@/lib/assessment-data'
+import { ROLES, NEW_ROLE_LABELS, buildSteps } from '@/lib/assessment-data'
+import type { Step } from '@/lib/assessment-data'
 import { getS3SignedUrl } from '@/lib/s3'
 import { notFound, redirect } from 'next/navigation'
 import EvaluatorView from './EvaluatorView'
@@ -42,8 +43,40 @@ export default async function EvaluatePage({
     .eq('attempt_id', attemptId)
     .not('reviewer_invite_id', 'is', null)
 
-  const role = test?.role ? ROLES[test.role as keyof typeof ROLES] : null
-  if (!role) notFound()
+  const rawRole = test?.role ?? ''
+
+  // Always try attempt_questions first — legacy roles (java/marketing) now use the new question bank too
+  const { data: aqRows } = await supabase
+    .from('attempt_questions')
+    .select('station_id, position, question_id, questions(content, doubts)')
+    .eq('attempt_id', attemptId)
+    .order('position', { ascending: true })
+
+  let roleLabel: string
+  let steps: Step[]
+
+  const legacyRole = ROLES[rawRole as keyof typeof ROLES]
+  const newRoleLabel = NEW_ROLE_LABELS[rawRole as keyof typeof NEW_ROLE_LABELS]
+
+  if (!legacyRole && !newRoleLabel) { notFound(); return null as never }
+
+  roleLabel = legacyRole ? legacyRole.label : newRoleLabel
+
+  if (aqRows && aqRows.length > 0) {
+    steps = buildSteps(aqRows.map((r: any) => {
+      const q = Array.isArray(r.questions) ? r.questions[0] : r.questions
+      return {
+        stationId: r.station_id,
+        position: r.position,
+        questionId: r.question_id,
+        content: q?.content ?? null,
+        doubts: q?.doubts ?? null,
+      }
+    }))
+  } else {
+    // pure legacy attempt (pre-question-bank)
+    steps = legacyRole ? legacyRole.steps : []
+  }
 
   // swap stored S3 URLs for presigned playback URLs (1h expiry)
   const signedRecordings = await Promise.all(
@@ -57,15 +90,16 @@ export default async function EvaluatePage({
   return (
     <EvaluatorView
       attemptId={attemptId}
+      candidateId={attempt.candidate_id}
       candidateName={candidate?.name || 'Unknown'}
       candidateEmail={candidate?.email || ''}
-      roleName={role.label}
-      roleKey={test!.role}
+      roleName={roleLabel}
+      roleKey={rawRole}
       attemptNumber={attempt.attempt_number}
       status={attempt.status}
       violationCount={attempt.violation_count || 0}
       isFlagged={attempt.is_flagged || false}
-      steps={role.steps}
+      steps={steps}
       recordings={signedRecordings}
       existingScores={existingScores || []}
       reviewerInvites={reviewerInvites}

@@ -368,7 +368,7 @@
 .videoWrap {
   position: relative;
   width: 100%;
-  max-width: 860px;
+  max-width: 620px;
   background: #000;
   border-radius: 12px;
   overflow: hidden;
@@ -380,7 +380,38 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+}
+
+.doubtOverlay {
+  position: absolute;
+  bottom: 56px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.doubtPopup {
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+  border-left: 3px solid #38bdf8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: slideUp 0.25s ease;
+}
+.doubtPopupWho {
+  font-weight: 700;
+  color: #38bdf8;
+  margin-right: 6px;
+  font-size: 12px;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .playerControls {
@@ -451,6 +482,19 @@
   border-radius: 12px;
   max-width: 860px;
 }
+
+.doubtsList { max-width: 860px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+.doubtsLabel { font-size: 11px; font-weight: 700; color: var(--e-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.doubtChip {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: #f7f9fb; border: 1px solid var(--e-line); border-radius: 8px;
+  padding: 10px 12px; text-align: left; cursor: pointer; width: 100%;
+  font-family: inherit; transition: background 0.12s;
+}
+.doubtChip:hover { background: #eef2f7; }
+.doubtTime { font-size: 11px; font-weight: 700; color: #006591; flex-shrink: 0; padding-top: 1px; }
+.doubtWho { font-size: 13px; font-weight: 600; color: #45464d; flex-shrink: 0; }
+.doubtText { font-size: 13px; color: #191c1e; line-height: 1.4; }
 
 /* ── Rubric section ── */
 .rubricArea {

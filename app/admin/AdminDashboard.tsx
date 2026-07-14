@@ -35,6 +35,21 @@ type Test = {
   attempts: Attempt[]
 }
 
+function copyText(text: string, onDone?: () => void) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(onDone).catch(() => fallbackCopy(text, onDone))
+  } else {
+    fallbackCopy(text, onDone)
+  }
+}
+function fallbackCopy(text: string, onDone?: () => void) {
+  const ta = document.createElement('textarea')
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+  document.body.appendChild(ta); ta.focus(); ta.select()
+  document.execCommand('copy'); document.body.removeChild(ta)
+  onDone?.()
+}
+
 export default function AdminDashboard({
   adminName,
   recentTests,
@@ -54,6 +69,7 @@ export default function AdminDashboard({
   const [generatedFor, setGeneratedFor] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedRowId, setCopiedRowId] = useState<string | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -88,10 +104,8 @@ export default function AdminDashboard({
     })
   }
 
-  async function handleCopy() {
-    await navigator.clipboard.writeText(generatedLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  function handleCopy() {
+    copyText(generatedLink, () => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
   function statusPill(attempts: Attempt[]) {
@@ -126,6 +140,34 @@ export default function AdminDashboard({
       return true
     })
   }, [recentTests, activeTab, dateFrom, dateTo])
+
+  // Badge counts: submitted but not yet fully reviewed, per role
+  const pendingReviewByRole = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const t of recentTests) {
+      const latest = getLatestSubmitted(t.attempts || [])
+      if (latest && !latest.reviewed) {
+        counts[t.role] = (counts[t.role] || 0) + 1
+      }
+    }
+    return counts
+  }, [recentTests])
+
+  // Top-level stats across all roles
+  const stats = useMemo(() => {
+    let scheduled = 0, completed = 0, pendingReview = 0
+    for (const t of recentTests) {
+      const submitted = (t.attempts || []).filter(a => a.status === 'submitted')
+      if (submitted.length === 0) {
+        scheduled++
+      } else {
+        completed++
+        const latest = getLatestSubmitted(t.attempts || [])
+        if (latest && !latest.reviewed) pendingReview++
+      }
+    }
+    return { scheduled, completed, pendingReview }
+  }, [recentTests])
 
   function downloadCSV() {
     const rows = [
@@ -167,15 +209,23 @@ export default function AdminDashboard({
       <header className={styles.top}>
         <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
         <div className={styles.tabPillGroup}>
-          {ROLES.map(r => (
-            <button
-              key={r.key}
-              className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
-              onClick={() => switchTab(r.key)}
-            >
-              {r.label}
-            </button>
-          ))}
+          {ROLES.map(r => {
+            const badge = pendingReviewByRole[r.key] || 0
+            return (
+              <button
+                key={r.key}
+                className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
+                onClick={() => switchTab(r.key)}
+              >
+                {r.label}
+                {badge > 0 && (
+                  <span className={`${styles.tabBadge} ${activeTab === r.key ? styles.tabBadgeActive : ''}`}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
         <div className={styles.topRight}>
           <span className={styles.adminName}>{adminName}</span>
@@ -184,6 +234,22 @@ export default function AdminDashboard({
       </header>
 
       <div className={styles.content}>
+        {/* Top-level stats */}
+        <div className={styles.statsRow}>
+          <div className={styles.statCard}>
+            <div className={styles.statNum}>{stats.scheduled}</div>
+            <div className={styles.statLabel}>Scheduled</div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statNum}>{stats.completed}</div>
+            <div className={styles.statLabel}>Completed</div>
+          </div>
+          <div className={`${styles.statCard} ${stats.pendingReview > 0 ? styles.statCardAmber : ''}`}>
+            <div className={styles.statNum}>{stats.pendingReview}</div>
+            <div className={styles.statLabel}>Pending Review</div>
+          </div>
+        </div>
+
         {/* Create test link */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -226,7 +292,7 @@ export default function AdminDashboard({
               <div className={styles.linkBoxLabel}>✓ Test link for {generatedFor}</div>
               <div className={styles.linkRow}>
                 <code className={styles.linkText}>{generatedLink}</code>
-                <button className={styles.copyBtn} onClick={handleCopy}>
+                <button type="button" className={styles.copyBtn} onClick={handleCopy}>
                   {copied ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
@@ -289,6 +355,7 @@ export default function AdminDashboard({
                   ) : filteredTests.map(t => {
                     const latest = getLatestSubmitted(t.attempts || [])
                     const reviewStatus = getReviewStatus(t.attempts || [])
+                    const testUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/test/${t.id}/${t.candidates?.id}/1`
                     return (
                       <tr key={t.id}>
                         <td>
@@ -319,16 +386,19 @@ export default function AdminDashboard({
                         </td>
                         <td className={styles.tdCenter}>
                           <button
+                            type="button"
                             className={styles.copyTestBtn}
-                            onClick={() => {
-                              const url = `${window.location.origin}/test/${t.id}/${t.candidates?.id}/1`
-                              navigator.clipboard.writeText(url)
-                            }}
+                            onClick={() => copyText(testUrl, () => { setCopiedRowId(t.id); setTimeout(() => setCopiedRowId(id => id === t.id ? null : id), 2000) })}
                           >
-                            Copy link
+                            {copiedRowId === t.id ? '✓ Copied' : 'Copy link'}
                           </button>
                         </td>
                         <td className={styles.tdRight}>
+                          {t.candidates?.id && (
+                            <Link href={`/candidate/${t.candidates.id}`} className={styles.profileLink} target="_blank">
+                              Profile
+                            </Link>
+                          )}
                           {(t.attempts || []).filter(a => a.status === 'submitted').map(a => (
                             <Link key={a.id} href={`/admin/evaluate/${a.id}`} className={styles.reviewLink}>
                               Review →
