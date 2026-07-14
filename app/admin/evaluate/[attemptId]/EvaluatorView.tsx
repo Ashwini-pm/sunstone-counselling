@@ -539,24 +539,28 @@ function overallAvg(): number | null {
                   }
                 </div>
 
-                {/* Live doubts */}
-                {activeStep.queries && activeStep.queries.length > 0 && (
-                  <div className={styles.doubtsList}>
-                    <div className={styles.doubtsLabel}>Live doubts during session</div>
-                    {activeStep.queries.map((q, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className={styles.doubtChip}
-                        onClick={() => videoPlayerRef.current?.seekTo(q.at)}
-                      >
-                        <span className={styles.doubtTime}>{fmt(q.at)}</span>
-                        <span className={styles.doubtWho}>{q.who}:</span>
-                        <span className={styles.doubtText}>{q.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Question + live doubts */}
+                <div className={styles.questionBox}>
+                  <div className={styles.questionLabel}>Question asked</div>
+                  <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: activeStep.topic }} />
+                  {activeStep.queries && activeStep.queries.length > 0 && (
+                    <div className={styles.doubtsList}>
+                      <div className={styles.doubtsLabel}>Live doubts during session</div>
+                      {activeStep.queries.map((q, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className={styles.doubtChip}
+                          onClick={() => videoPlayerRef.current?.seekTo(q.at)}
+                        >
+                          <span className={styles.doubtTime}>{fmt(q.at)}</span>
+                          <span className={styles.doubtWho}>{q.who}:</span>
+                          <span className={styles.doubtText}>{q.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Reviewer overall verdicts */}
                 {invites.length > 0 && (
