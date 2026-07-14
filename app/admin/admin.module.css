@@ -58,77 +58,82 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .adminName {
-  font-size: 13px;
-  color: var(--a-slate);
-  font-weight: 600;
+  font-size: 12px;
+  color: var(--a-muted);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 .logoutBtn {
   background: transparent;
-  border: 1px solid rgba(198,198,205,0.4);
+  border: 1px solid var(--a-line-solid);
   color: var(--a-slate);
-  border-radius: 8px;
-  padding: 7px 16px;
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s;
-  margin-left: 16px;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.logoutBtn:hover { background: var(--a-surface-low); }
-
+.logoutBtn:hover { background: var(--a-surface-low); color: var(--a-ink); }
 
 .tabPillGroup {
   display: inline-flex;
   align-items: center;
-  background: var(--a-surface-container);
-  border-radius: 12px;
-  padding: 4px;
-  gap: 4px;
+  gap: 2px;
 }
 
 .pageTab {
-  padding: 8px 20px;
+  position: relative;
+  padding: 6px 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   background: transparent;
   color: var(--a-slate);
-  transition: all .15s;
-  letter-spacing: 0.01em;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
 }
-.pageTab:hover { color: var(--a-ink); }
+.pageTab:hover { background: var(--a-surface-low); color: var(--a-ink); }
+
 .pageTabActive {
-  background: var(--a-primary);
-  color: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  background: #eef4fb;
+  color: var(--a-secondary);
+  font-weight: 600;
 }
-.pageTabActive:hover { color: #fff; }
+.pageTabActive:hover { background: #e4eff8; color: var(--a-secondary); }
 
 .tabBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  font-size: 11px;
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 700;
   background: var(--a-brand-red);
   color: #fff;
-  line-height: 1;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
 }
 .tabBadgeActive {
-  background: rgba(255,255,255,0.3);
+  background: var(--a-brand-red);
   color: #fff;
 }
 

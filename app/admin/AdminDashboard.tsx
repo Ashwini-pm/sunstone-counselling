@@ -216,6 +216,7 @@ export default function AdminDashboard({
                 key={r.key}
                 className={`${styles.pageTab} ${activeTab === r.key ? styles.pageTabActive : ''}`}
                 onClick={() => switchTab(r.key)}
+                style={badge > 0 ? { paddingRight: 22 } : undefined}
               >
                 {r.label}
                 {badge > 0 && (
