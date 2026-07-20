@@ -596,6 +596,19 @@
   line-height: 1.4;
 }
 .qi b { color: var(--t-error); }
+.qiNew {
+  border-color: #38bdf8;
+  background: #f0f9ff;
+  animation: qiPop 0.3s ease, qiFade 3s ease 1s forwards;
+}
+@keyframes qiPop {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes qiFade {
+  0% { border-color: #38bdf8; background: #f0f9ff; }
+  100% { border-color: var(--t-line); background: var(--t-surface-low); }
+}
 
 /* ── RIGHT: CAMERA PANEL ── */
 .cameraPanel {

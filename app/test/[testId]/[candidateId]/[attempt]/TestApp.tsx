@@ -333,6 +333,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
             <li>Camera and microphone required</li>
             <li>Stay on this window throughout</li>
             <li>Do not refresh the page</li>
+            <li>For the micro-teaching station, live student doubts will appear on screen — treat them as real classroom questions and respond naturally</li>
           </ul>
           {!stream && !camError && (
             <button className={styles.permBtn} onClick={enableCamera}>
@@ -425,12 +426,17 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           <div className={styles.questionBlock}>
             <div className={styles.questionLabel}>Question</div>
             <p className={styles.questionText} dangerouslySetInnerHTML={{ __html: step.topic }} />
-            {isTeach && liveQueries.length > 0 && (
+            {isTeach && (
               <div className={styles.qFeed}>
-                <div className={styles.qFeedLabel}>Live student doubts</div>
-                {liveQueries.map((q, i) => (
-                  <div key={i} className={styles.qi}><b>{q.who}:</b> {q.text}</div>
-                ))}
+                <div className={styles.qFeedLabel}>✋ Live student doubts</div>
+                {liveQueries.length === 0
+                  ? <div className={styles.qEmpty}>Student doubts will appear here as the session progresses — address them naturally.</div>
+                  : liveQueries.map((q, i) => (
+                    <div key={i} className={`${styles.qi} ${i === liveQueries.length - 1 ? styles.qiNew : ''}`}>
+                      <b>{q.who}:</b> {q.text}
+                    </div>
+                  ))
+                }
               </div>
             )}
           </div>
