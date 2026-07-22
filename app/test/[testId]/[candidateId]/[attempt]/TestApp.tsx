@@ -421,16 +421,55 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   if (stage === 'ready') {
     const STEPS = ['Camera', 'Microphone', 'Fullscreen', 'Instructions']
 
+    // Inline SVG icons — no emoji
+    const IconCamera = () => (
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+      </svg>
+    )
+    const IconMic = () => (
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    )
+    const IconMaximize = () => (
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+      </svg>
+    )
+    const IconClipboard = () => (
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>
+      </svg>
+    )
+    const IconCheck = () => (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    )
+    const IconAlert = () => (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    )
+
+    const instRows = [
+      { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, title: '9 stations', desc: 'Approximately 30 minutes total. Each station is timed.' },
+      { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>, title: 'Speak clearly', desc: 'Each station requires a recorded video response.' },
+      { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, title: 'Live student doubts', desc: 'Doubts appear on screen during micro-teaching. Respond naturally as you would in a real classroom.' },
+      { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>, title: 'Stay in the window', desc: "Tab switching, minimizing, and refreshing are all logged as violations." },
+    ]
+
     return (
       <div className={styles.wizardPage}>
-        {/* Top progress bar */}
+        {/* Top nav with step progress */}
         <div className={styles.wizardNav}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.wizardNavLogo} />
           <div className={styles.wizardSteps}>
             {STEPS.map((label, i) => (
               <div key={i} className={`${styles.wizardStep} ${checkStep === i+1 ? styles.wizardStepActive : checkStep > i+1 ? styles.wizardStepDone : ''}`}>
                 <div className={styles.wizardStepDot}>
-                  {checkStep > i+1 ? '✓' : i+1}
+                  {checkStep > i+1 ? <IconCheck /> : i+1}
                 </div>
                 <span className={styles.wizardStepLabel}>{label}</span>
                 {i < STEPS.length-1 && <div className={styles.wizardStepLine} />}
@@ -446,7 +485,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           {/* ── STEP 1: Camera ── */}
           {checkStep === 1 && (
             <div className={styles.wizardPane}>
-              <div className={styles.wizardIcon}>📷</div>
+              <div className={styles.wizardIconWrap}><IconCamera /></div>
               <h2 className={styles.wizardTitle}>Allow your camera</h2>
               <p className={styles.wizardDesc}>We need camera access to record your teaching session. Click below and allow when your browser asks.</p>
               <div className={styles.wizardPreviewWrap}>
@@ -456,15 +495,15 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                       <div className={styles.camLiveBadge}><span className={styles.camLiveDot} />LIVE</div>
                     </>
                   : <div className={styles.wizardPreviewPlaceholder}>
-                      <span style={{ fontSize: 48 }}>📷</span>
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                       <span>Camera preview will appear here</span>
                     </div>
                 }
               </div>
               {camError && <p className={styles.camError}>{camError}</p>}
               {!stream
-                ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone →</button>
-                : <button className={styles.wizardBtnSuccess} onClick={() => setCheckStep(2)}>Camera working ✓ — Next →</button>
+                ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone</button>
+                : <button className={styles.wizardBtnSuccess} onClick={() => setCheckStep(2)}>Camera confirmed — Continue</button>
               }
             </div>
           )}
@@ -472,9 +511,9 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           {/* ── STEP 2: Microphone ── */}
           {checkStep === 2 && (
             <div className={styles.wizardPane}>
-              <div className={styles.wizardIcon}>🎤</div>
+              <div className={styles.wizardIconWrap}><IconMic /></div>
               <h2 className={styles.wizardTitle}>Test your microphone</h2>
-              <p className={styles.wizardDesc}>Say something out loud. The bars below should move when you speak.</p>
+              <p className={styles.wizardDesc}>Say something out loud. The bars below should respond when you speak.</p>
               <div className={styles.wizardMicTest}>
                 <div className={styles.wizardMicBars}>
                   {[8,18,30,44,60,76,88].map((threshold, i) => (
@@ -485,8 +524,8 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                     />
                   ))}
                 </div>
-                <div className={styles.wizardMicLabel}>
-                  {micEverDetected ? '🟢 Mic detected' : '🔴 Speak to test your mic'}
+                <div className={`${styles.wizardMicLabel} ${micEverDetected ? styles.wizardMicLabelOk : ''}`}>
+                  {micEverDetected ? 'Microphone detected' : 'Speak to test your microphone'}
                 </div>
               </div>
               <button
@@ -494,7 +533,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                 onClick={() => { if (micEverDetected) setCheckStep(3) }}
                 disabled={!micEverDetected}
               >
-                {micEverDetected ? 'Microphone working ✓ — Next →' : 'Waiting for mic input…'}
+                {micEverDetected ? 'Microphone confirmed — Continue' : 'Waiting for microphone input'}
               </button>
             </div>
           )}
@@ -502,19 +541,19 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           {/* ── STEP 3: Fullscreen ── */}
           {checkStep === 3 && (
             <div className={styles.wizardPane}>
-              <div className={styles.wizardIcon}>⛶</div>
+              <div className={styles.wizardIconWrap}><IconMaximize /></div>
               <h2 className={styles.wizardTitle}>Enable fullscreen</h2>
-              <p className={styles.wizardDesc}>Your assessment must run in fullscreen mode. Switching tabs or exiting fullscreen will be logged as a violation.</p>
+              <p className={styles.wizardDesc}>Your assessment must run in fullscreen mode. Any of the following will be logged as a violation.</p>
               <div className={styles.wizardInfoBox}>
-                <div className={styles.wizardInfoRow}><span>⚠️</span> Tab switching is recorded</div>
-                <div className={styles.wizardInfoRow}><span>⚠️</span> Exiting fullscreen is recorded</div>
-                <div className={styles.wizardInfoRow}><span>⚠️</span> Do not refresh the page</div>
+                <div className={styles.wizardInfoRow}><IconAlert /> Switching tabs or windows</div>
+                <div className={styles.wizardInfoRow}><IconAlert /> Exiting fullscreen</div>
+                <div className={styles.wizardInfoRow}><IconAlert /> Refreshing the page</div>
               </div>
               <button className={styles.wizardBtn} onClick={async () => {
                 await document.documentElement.requestFullscreen?.()
                 setCheckStep(4)
               }}>
-                Enter fullscreen →
+                Enter fullscreen
               </button>
             </div>
           )}
@@ -522,27 +561,22 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
           {/* ── STEP 4: Instructions ── */}
           {checkStep === 4 && (
             <div className={styles.wizardPane}>
-              <div className={styles.wizardIcon}>📋</div>
+              <div className={styles.wizardIconWrap}><IconClipboard /></div>
               <h2 className={styles.wizardTitle}>You're all set</h2>
-              <p className={styles.wizardDesc}>Read the instructions below before you begin your assessment.</p>
+              <p className={styles.wizardDesc}>Review the instructions below, then begin when ready.</p>
               <div className={styles.wizardInstructions}>
-                {[
-                  ['🎯', '9 stations', '~30 minutes total. Each station is timed.'],
-                  ['🎤', 'Speak clearly', 'Each station requires a video recording.'],
-                  ['✋', 'Live doubts', 'Student doubts appear on screen during micro-teaching — treat them as real.'],
-                  ['🔒', 'Stay focused', 'Don\'t switch tabs, minimize, or refresh. Each violation is logged.'],
-                ].map(([icon, title, desc], i) => (
+                {instRows.map((row, i) => (
                   <div key={i} className={styles.wizardInstRow}>
-                    <span className={styles.wizardInstIcon}>{icon}</span>
+                    <span className={styles.wizardInstIcon}>{row.icon}</span>
                     <div>
-                      <div className={styles.wizardInstTitle}>{title}</div>
-                      <div className={styles.wizardInstDesc}>{desc}</div>
+                      <div className={styles.wizardInstTitle}>{row.title}</div>
+                      <div className={styles.wizardInstDesc}>{row.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
               <button className={styles.wizardBtnSuccess} onClick={beginAssessment}>
-                Begin assessment →
+                Begin assessment
               </button>
             </div>
           )}

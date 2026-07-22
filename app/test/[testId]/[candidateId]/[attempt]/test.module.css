@@ -1560,6 +1560,17 @@
 }
 
 .wizardIcon { font-size: 52px; line-height: 1; }
+.wizardIconWrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d1b3e;
+}
 .wizardTitle {
   font-size: 28px;
   font-weight: 800;
@@ -1627,10 +1638,11 @@
   transform: scaleY(1.1);
 }
 .wizardMicLabel {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: #94a3b8;
 }
+.wizardMicLabelOk { color: #15803d; }
 
 /* Info box */
 .wizardInfoBox {
