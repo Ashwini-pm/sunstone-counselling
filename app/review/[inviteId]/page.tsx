@@ -22,18 +22,67 @@ export default async function ReviewPage({
   if (!invite) notFound()
 
   if (user?.email?.toLowerCase() !== invite.email.toLowerCase()) {
+    const isWrongAccount = !!user
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui', background: '#f5f5f5' }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: '40px 48px', maxWidth: 420, textAlign: 'center', boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
-          <div style={{ fontSize: 36, marginBottom: 16 }}>⚠️</div>
-          <h2 style={{ margin: '0 0 8px', fontSize: 18 }}>Wrong account</h2>
-          <p style={{ color: '#666', margin: '0 0 24px', lineHeight: 1.5 }}>
-            This review link was sent to <strong>{invite.email}</strong>.<br />
-            You are signed in as <strong>{user?.email}</strong>.
-          </p>
-          <a href={`/login?next=/review/${inviteId}`} style={{ display: 'inline-block', background: '#111', color: '#fff', borderRadius: 8, padding: '10px 24px', textDecoration: 'none', fontSize: 14 }}>
-            Sign in with the correct account
-          </a>
+      <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+        {/* Left dark panel */}
+        <div style={{
+          background: '#0d1b3e',
+          backgroundImage: 'radial-gradient(ellipse 60% 50% at 20% 30%, rgba(59,130,246,0.12) 0%, transparent 70%)',
+          padding: '52px 56px 40px',
+          display: 'flex', flexDirection: 'column', color: '#fff', position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)', backgroundSize: '48px 48px', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" style={{ height: 26, width: 'auto', maxWidth: 180, filter: 'brightness(0) invert(1)', display: 'block', marginBottom: 4 }} />
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', color: '#f59e0b', textTransform: 'uppercase' }}>Review Portal</span>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Faculty Assessment</span>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', zIndex: 1, padding: '32px 0' }}>
+            <h1 style={{ fontSize: 44, fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.03em', color: '#fff', margin: '0 0 20px' }}>
+              Review.<br /><span style={{ color: '#f59e0b' }}>Shape what teaching looks like.</span>
+            </h1>
+            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, maxWidth: 340, margin: '0 0 36px' }}>
+              You've been invited to assess a faculty candidate. Your evaluation helps Sunstone hire better teachers.
+            </p>
+            {['Watch candidate recordings', 'Score across 5 teaching dimensions', 'Give a final hire/no-hire verdict'].map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '14px 18px', fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: 500, marginBottom: 10 }}>
+                <span style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>
+                  {['▶️','✏️','✅'][i]}
+                </span>
+                {f}
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'relative', zIndex: 1, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', flexShrink: 0, display: 'inline-block' }} />
+            All systems operational
+          </div>
+        </div>
+
+        {/* Right white panel */}
+        <div style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 64px' }}>
+          <div style={{ width: '100%', maxWidth: 360 }}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" style={{ height: 28, width: 'auto', display: 'block', marginBottom: 40 }} />
+            <h2 style={{ fontSize: 28, fontWeight: 800, color: '#0d1b3e', letterSpacing: '-0.02em', margin: '0 0 8px' }}>
+              {isWrongAccount ? 'Wrong account' : 'Sign in to review'}
+            </h2>
+            <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 32px' }}>
+              {isWrongAccount
+                ? <>This review link was sent to <strong style={{ color: '#0d1b3e' }}>{invite.email}</strong>. You're signed in as <strong style={{ color: '#b91c1c' }}>{user?.email}</strong>.</>
+                : <>This review link was sent to <strong style={{ color: '#0d1b3e' }}>{invite.email}</strong>. Please sign in with that Google account to continue.</>
+              }
+            </p>
+            <a
+              href={`/login?next=/review/${inviteId}`}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '14px 20px', background: '#0d1b3e', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 16px rgba(13,27,62,0.25)' }}
+            >
+              {isWrongAccount ? 'Sign in with correct account' : 'Continue with Google'}
+            </a>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 14 }}>
+              Use <strong style={{ color: '#0d1b3e' }}>{invite.email}</strong>
+            </p>
+          </div>
         </div>
       </div>
     )
