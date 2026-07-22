@@ -62,7 +62,15 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const globalElapsedRef = useRef(0)
   const globalTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Media check state
+  const [micLevel, setMicLevel] = useState(0)       // 0-100
+  const [micEverDetected, setMicEverDetected] = useState(false)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animFrameRef = useRef<number | null>(null)
+
   const videoRef = useRef<HTMLVideoElement>(null)
+  const camPreviewRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -80,6 +88,41 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       v.play().catch(() => {})
     }
   }, [stream, idx, stage])
+
+  // Camera preview on ready screen
+  useEffect(() => {
+    const v = camPreviewRef.current
+    if (stream && v) {
+      v.srcObject = stream
+      v.play().catch(() => {})
+    }
+  }, [stream])
+
+  // Mic level analyser
+  useEffect(() => {
+    if (!stream) return
+    const ctx = new AudioContext()
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 256
+    const source = ctx.createMediaStreamSource(stream)
+    source.connect(analyser)
+    audioCtxRef.current = ctx
+    analyserRef.current = analyser
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    function tick() {
+      analyser.getByteFrequencyData(data)
+      const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length)
+      const level = Math.min(100, Math.round(rms * 2.5))
+      setMicLevel(level)
+      if (level > 8) setMicEverDetected(true)
+      animFrameRef.current = requestAnimationFrame(tick)
+    }
+    animFrameRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+      ctx.close()
+    }
+  }, [stream])
 
   useEffect(() => {
     if (stage !== 'station') return
@@ -320,38 +363,102 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   // ── READY ──
   if (stage === 'ready') {
+    const camOk = !!stream
+    const allOk = camOk && micEverDetected
+
     return (
       <div className={styles.readyPage}>
-        <div className={styles.readyCard}>
-          <div className={styles.gateLogo}>S</div>
-          <h2 className={styles.gateTitle}>Ready to begin?</h2>
-          <p className={styles.gateSub}>
-            The assessment will open in <b>fullscreen</b>. Switching tabs or exiting fullscreen will be logged as a violation.
-          </p>
-          <ul className={styles.readyList}>
-            <li>9 stations · ~30 minutes</li>
-            <li>Camera and microphone required</li>
-            <li>Stay on this window throughout</li>
-            <li>Do not refresh the page</li>
-            <li>For the micro-teaching station, live student doubts will appear on screen — treat them as real classroom questions and respond naturally</li>
-          </ul>
-          {!stream && !camError && (
-            <button className={styles.permBtn} onClick={enableCamera}>
-              Allow camera &amp; microphone →
-            </button>
-          )}
-          {camError && <p className={styles.camError}>{camError}</p>}
-          {stream && (
-            <>
-              <div className={styles.camPreview}>
-                <video ref={videoRef} autoPlay muted playsInline className={styles.camPreviewVid} />
-                <div className={styles.camReady}>Camera ready</div>
+        <div className={styles.checkCard}>
+          {/* Header */}
+          <div className={styles.checkHeader}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.checkLogo} />
+            <h2 className={styles.checkTitle}>System check</h2>
+            <p className={styles.checkSub}>Let's make sure your camera and mic are working before you begin.</p>
+          </div>
+
+          {/* Two-column: left = checks, right = camera preview */}
+          <div className={styles.checkBody}>
+            <div className={styles.checkLeft}>
+
+              {/* Camera check */}
+              <div className={`${styles.checkItem} ${camOk ? styles.checkItemOk : ''}`}>
+                <div className={styles.checkItemIcon}>{camOk ? '✓' : '📷'}</div>
+                <div className={styles.checkItemText}>
+                  <div className={styles.checkItemLabel}>Camera</div>
+                  <div className={styles.checkItemStatus}>{camOk ? 'Working' : 'Not connected'}</div>
+                </div>
               </div>
-              <button className={styles.gateBtn} onClick={beginAssessment}>
-                Begin assessment →
-              </button>
-            </>
-          )}
+
+              {/* Mic check */}
+              <div className={`${styles.checkItem} ${micEverDetected ? styles.checkItemOk : camOk ? styles.checkItemWarn : ''}`}>
+                <div className={styles.checkItemIcon}>{micEverDetected ? '✓' : '🎤'}</div>
+                <div className={styles.checkItemText}>
+                  <div className={styles.checkItemLabel}>Microphone</div>
+                  <div className={styles.checkItemStatus}>
+                    {!camOk ? 'Not connected' : micEverDetected ? 'Working' : 'Speak to test…'}
+                  </div>
+                </div>
+                {camOk && (
+                  <div className={styles.micBars}>
+                    {[10, 25, 45, 65, 85].map((threshold, i) => (
+                      <div
+                        key={i}
+                        className={`${styles.micBar} ${micLevel >= threshold ? styles.micBarActive : ''}`}
+                        style={{ height: `${10 + i * 5}px` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div className={styles.checkRules}>
+                <div className={styles.checkRulesLabel}>Before you start</div>
+                <ul className={styles.checkRulesList}>
+                  <li>9 stations · ~30 minutes total</li>
+                  <li>Stay on this window — tab switching is logged</li>
+                  <li>Do not refresh the page</li>
+                  <li>Live student doubts appear during micro-teaching — respond naturally</li>
+                </ul>
+              </div>
+
+              {/* CTA */}
+              {!stream && !camError && (
+                <button className={styles.permBtn} onClick={enableCamera}>
+                  Allow camera &amp; microphone →
+                </button>
+              )}
+              {camError && <p className={styles.camError}>{camError}</p>}
+              {stream && (
+                <button
+                  className={`${styles.gateBtn} ${!allOk ? styles.gateBtnDim : ''}`}
+                  onClick={beginAssessment}
+                  disabled={!allOk}
+                >
+                  {allOk ? 'Begin assessment →' : 'Speak into your mic to continue…'}
+                </button>
+              )}
+            </div>
+
+            {/* Camera preview */}
+            <div className={styles.checkRight}>
+              <div className={styles.camPreview}>
+                {stream
+                  ? <video ref={camPreviewRef} autoPlay muted playsInline className={styles.camPreviewVid} />
+                  : <div className={styles.camPlaceholder}>
+                      <span style={{ fontSize: 36 }}>📷</span>
+                      <span>Camera off</span>
+                    </div>
+                }
+                {stream && (
+                  <div className={styles.camLiveBadge}>
+                    <span className={styles.camLiveDot} />
+                    LIVE
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -480,6 +587,17 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                   RECORDING
                 </div>
                 <div className={styles.elapsedBadge}>{fmt(elapsed)} / {fmt(step.durationSec)}</div>
+                {/* Live mic indicator */}
+                <div className={styles.liveMicBadge}>
+                  🎤
+                  {[8, 20, 38, 58, 78].map((threshold, i) => (
+                    <div
+                      key={i}
+                      className={`${styles.liveMicBar} ${micLevel >= threshold ? styles.liveMicBarOn : ''}`}
+                      style={{ height: `${6 + i * 3}px` }}
+                    />
+                  ))}
+                </div>
                 <div className={styles.floatingControls}>
                   <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
                 </div>
