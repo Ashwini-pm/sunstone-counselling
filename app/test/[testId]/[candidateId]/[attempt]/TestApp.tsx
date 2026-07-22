@@ -63,7 +63,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const globalTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Media check state
-  const [checkStep, setCheckStep] = useState<1|2|3|4>(1)
+  const [checkStep, setCheckStep] = useState<1|2|3>(1)
   const [micLevel, setMicLevel] = useState(0)       // 0-100
   const [micEverDetected, setMicEverDetected] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -419,7 +419,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   // ── READY ──
   if (stage === 'ready') {
-    const STEPS = ['Camera', 'Microphone', 'Fullscreen', 'Instructions']
+    const STEPS = ['Camera & Microphone', 'Fullscreen', 'Instructions']
 
     // Inline SVG icons — no emoji
     const IconCamera = () => (
@@ -482,12 +482,12 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
         {/* Step content */}
         <div className={styles.wizardBody}>
 
-          {/* ── STEP 1: Camera ── */}
+          {/* ── STEP 1: Camera & Microphone ── */}
           {checkStep === 1 && (
             <div className={styles.wizardPane}>
               <div className={styles.wizardIconWrap}><IconCamera /></div>
-              <h2 className={styles.wizardTitle}>Allow your camera</h2>
-              <p className={styles.wizardDesc}>We need camera access to record your teaching session. Click below and allow when your browser asks.</p>
+              <h2 className={styles.wizardTitle}>Camera &amp; Microphone</h2>
+              <p className={styles.wizardDesc}>Allow access so we can record your teaching session. Click below and accept the browser prompt.</p>
               <div className={styles.wizardPreviewWrap}>
                 {stream
                   ? <>
@@ -500,46 +500,41 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
                     </div>
                 }
               </div>
+
+              {/* Mic level bar — shown once stream is active */}
+              {stream && (
+                <div className={styles.wizardMicTest}>
+                  <div className={styles.wizardMicBarRow}>
+                    <div className={styles.wizardMicBarIcon}><IconMic /></div>
+                    <div className={styles.wizardMicBarTrack}>
+                      <div
+                        className={`${styles.wizardMicBarFill} ${micLevel > 0 ? styles.wizardMicBarFillActive : ''}`}
+                        style={{ width: `${micLevel}%` }}
+                      />
+                    </div>
+                    <div className={`${styles.wizardMicLabel} ${micEverDetected ? styles.wizardMicLabelOk : ''}`}>
+                      {micEverDetected ? 'Detected' : 'Speak'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {camError && <p className={styles.camError}>{camError}</p>}
               {!stream
                 ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone</button>
-                : <button className={styles.wizardBtnSuccess} onClick={() => setCheckStep(2)}>Camera confirmed — Continue</button>
+                : <button
+                    className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtnDisabled}
+                    onClick={() => { if (micEverDetected) setCheckStep(2) }}
+                    disabled={!micEverDetected}
+                  >
+                    {micEverDetected ? 'Camera & mic confirmed — Continue' : 'Speak to confirm microphone'}
+                  </button>
               }
             </div>
           )}
 
-          {/* ── STEP 2: Microphone ── */}
+          {/* ── STEP 2: Fullscreen ── */}
           {checkStep === 2 && (
-            <div className={styles.wizardPane}>
-              <div className={styles.wizardIconWrap}><IconMic /></div>
-              <h2 className={styles.wizardTitle}>Test your microphone</h2>
-              <p className={styles.wizardDesc}>Say something out loud. The bars below should respond when you speak.</p>
-              <div className={styles.wizardMicTest}>
-                <div className={styles.wizardMicBars}>
-                  {[8,18,30,44,60,76,88].map((threshold, i) => (
-                    <div
-                      key={i}
-                      className={`${styles.wizardMicBar} ${micLevel >= threshold ? styles.wizardMicBarOn : ''}`}
-                      style={{ height: `${20 + i * 8}px` }}
-                    />
-                  ))}
-                </div>
-                <div className={`${styles.wizardMicLabel} ${micEverDetected ? styles.wizardMicLabelOk : ''}`}>
-                  {micEverDetected ? 'Microphone detected' : 'Speak to test your microphone'}
-                </div>
-              </div>
-              <button
-                className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtnDisabled}
-                onClick={() => { if (micEverDetected) setCheckStep(3) }}
-                disabled={!micEverDetected}
-              >
-                {micEverDetected ? 'Microphone confirmed — Continue' : 'Waiting for microphone input'}
-              </button>
-            </div>
-          )}
-
-          {/* ── STEP 3: Fullscreen ── */}
-          {checkStep === 3 && (
             <div className={styles.wizardPane}>
               <div className={styles.wizardIconWrap}><IconMaximize /></div>
               <h2 className={styles.wizardTitle}>Enable fullscreen</h2>
@@ -551,15 +546,15 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
               </div>
               <button className={styles.wizardBtn} onClick={async () => {
                 await document.documentElement.requestFullscreen?.()
-                setCheckStep(4)
+                setCheckStep(3)
               }}>
                 Enter fullscreen
               </button>
             </div>
           )}
 
-          {/* ── STEP 4: Instructions ── */}
-          {checkStep === 4 && (
+          {/* ── STEP 3: Instructions ── */}
+          {checkStep === 3 && (
             <div className={styles.wizardPane}>
               <div className={styles.wizardIconWrap}><IconClipboard /></div>
               <h2 className={styles.wizardTitle}>You're all set</h2>

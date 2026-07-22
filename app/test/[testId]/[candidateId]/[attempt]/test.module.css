@@ -1608,39 +1608,50 @@
   font-size: 14px;
 }
 
-/* Mic test */
+/* Mic test — horizontal bar */
 .wizardMicTest {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  width: 100%;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 32px 48px;
-  width: 100%;
+  border-radius: 12px;
+  padding: 14px 20px;
 }
-.wizardMicBars {
+.wizardMicBarRow {
   display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 80px;
+  align-items: center;
+  gap: 12px;
 }
-.wizardMicBar {
-  width: 10px;
-  border-radius: 5px;
+.wizardMicBarIcon {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.wizardMicBarTrack {
+  flex: 1;
+  height: 8px;
   background: #e2e8f0;
-  transition: background 0.07s, transform 0.07s;
-  align-self: flex-end;
+  border-radius: 999px;
+  overflow: hidden;
 }
-.wizardMicBarOn {
+.wizardMicBarFill {
+  height: 100%;
+  width: 0%;
+  background: #e2e8f0;
+  border-radius: 999px;
+  transition: width 0.06s ease, background 0.1s;
+}
+.wizardMicBarFillActive {
   background: #22c55e;
-  transform: scaleY(1.1);
 }
 .wizardMicLabel {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #94a3b8;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: right;
 }
 .wizardMicLabelOk { color: #15803d; }
 
