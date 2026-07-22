@@ -63,6 +63,7 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
   const globalTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Media check state
+  const [checkStep, setCheckStep] = useState<1|2|3|4>(1)
   const [micLevel, setMicLevel] = useState(0)       // 0-100
   const [micEverDetected, setMicEverDetected] = useState(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -418,102 +419,134 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
 
   // ── READY ──
   if (stage === 'ready') {
-    const camOk = !!stream
-    const allOk = camOk && micEverDetected
+    const STEPS = ['Camera', 'Microphone', 'Fullscreen', 'Instructions']
 
     return (
-      <div className={styles.readyPage}>
-        <div className={styles.checkCard}>
-          {/* Header */}
-          <div className={styles.checkHeader}>
-            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.checkLogo} />
-            <h2 className={styles.checkTitle}>System check</h2>
-            <p className={styles.checkSub}>Let's make sure your camera and mic are working before you begin.</p>
+      <div className={styles.wizardPage}>
+        {/* Top progress bar */}
+        <div className={styles.wizardNav}>
+          <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.wizardNavLogo} />
+          <div className={styles.wizardSteps}>
+            {STEPS.map((label, i) => (
+              <div key={i} className={`${styles.wizardStep} ${checkStep === i+1 ? styles.wizardStepActive : checkStep > i+1 ? styles.wizardStepDone : ''}`}>
+                <div className={styles.wizardStepDot}>
+                  {checkStep > i+1 ? '✓' : i+1}
+                </div>
+                <span className={styles.wizardStepLabel}>{label}</span>
+                {i < STEPS.length-1 && <div className={styles.wizardStepLine} />}
+              </div>
+            ))}
           </div>
+          <div className={styles.wizardNavSpacer} />
+        </div>
 
-          {/* Two-column: left = checks, right = camera preview */}
-          <div className={styles.checkBody}>
-            <div className={styles.checkLeft}>
+        {/* Step content */}
+        <div className={styles.wizardBody}>
 
-              {/* Camera check */}
-              <div className={`${styles.checkItem} ${camOk ? styles.checkItemOk : ''}`}>
-                <div className={styles.checkItemIcon}>{camOk ? '✓' : '📷'}</div>
-                <div className={styles.checkItemText}>
-                  <div className={styles.checkItemLabel}>Camera</div>
-                  <div className={styles.checkItemStatus}>{camOk ? 'Working' : 'Not connected'}</div>
-                </div>
-              </div>
-
-              {/* Mic check */}
-              <div className={`${styles.checkItem} ${micEverDetected ? styles.checkItemOk : camOk ? styles.checkItemWarn : ''}`}>
-                <div className={styles.checkItemIcon}>{micEverDetected ? '✓' : '🎤'}</div>
-                <div className={styles.checkItemText}>
-                  <div className={styles.checkItemLabel}>Microphone</div>
-                  <div className={styles.checkItemStatus}>
-                    {!camOk ? 'Not connected' : micEverDetected ? 'Working' : 'Speak to test…'}
-                  </div>
-                </div>
-                {camOk && (
-                  <div className={styles.micBars}>
-                    {[10, 25, 45, 65, 85].map((threshold, i) => (
-                      <div
-                        key={i}
-                        className={`${styles.micBar} ${micLevel >= threshold ? styles.micBarActive : ''}`}
-                        style={{ height: `${10 + i * 5}px` }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Instructions */}
-              <div className={styles.checkRules}>
-                <div className={styles.checkRulesLabel}>Before you start</div>
-                <ul className={styles.checkRulesList}>
-                  <li>9 stations · ~30 minutes total</li>
-                  <li>Stay on this window — tab switching is logged</li>
-                  <li>Do not refresh the page</li>
-                  <li>Live student doubts appear during micro-teaching — respond naturally</li>
-                </ul>
-              </div>
-
-              {/* CTA */}
-              {!stream && !camError && (
-                <button className={styles.permBtn} onClick={enableCamera}>
-                  Allow camera &amp; microphone →
-                </button>
-              )}
-              {camError && <p className={styles.camError}>{camError}</p>}
-              {stream && (
-                <button
-                  className={`${styles.gateBtn} ${!allOk ? styles.gateBtnDim : ''}`}
-                  onClick={beginAssessment}
-                  disabled={!allOk}
-                >
-                  {allOk ? 'Begin assessment →' : 'Speak into your mic to continue…'}
-                </button>
-              )}
-            </div>
-
-            {/* Camera preview */}
-            <div className={styles.checkRight}>
-              <div className={styles.camPreview}>
+          {/* ── STEP 1: Camera ── */}
+          {checkStep === 1 && (
+            <div className={styles.wizardPane}>
+              <div className={styles.wizardIcon}>📷</div>
+              <h2 className={styles.wizardTitle}>Allow your camera</h2>
+              <p className={styles.wizardDesc}>We need camera access to record your teaching session. Click below and allow when your browser asks.</p>
+              <div className={styles.wizardPreviewWrap}>
                 {stream
-                  ? <video ref={camPreviewRef} autoPlay muted playsInline className={styles.camPreviewVid} />
-                  : <div className={styles.camPlaceholder}>
-                      <span style={{ fontSize: 36 }}>📷</span>
-                      <span>Camera off</span>
+                  ? <>
+                      <video ref={camPreviewRef} autoPlay muted playsInline className={styles.wizardPreviewVid} />
+                      <div className={styles.camLiveBadge}><span className={styles.camLiveDot} />LIVE</div>
+                    </>
+                  : <div className={styles.wizardPreviewPlaceholder}>
+                      <span style={{ fontSize: 48 }}>📷</span>
+                      <span>Camera preview will appear here</span>
                     </div>
                 }
-                {stream && (
-                  <div className={styles.camLiveBadge}>
-                    <span className={styles.camLiveDot} />
-                    LIVE
-                  </div>
-                )}
               </div>
+              {camError && <p className={styles.camError}>{camError}</p>}
+              {!stream
+                ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone →</button>
+                : <button className={styles.wizardBtnSuccess} onClick={() => setCheckStep(2)}>Camera working ✓ — Next →</button>
+              }
             </div>
-          </div>
+          )}
+
+          {/* ── STEP 2: Microphone ── */}
+          {checkStep === 2 && (
+            <div className={styles.wizardPane}>
+              <div className={styles.wizardIcon}>🎤</div>
+              <h2 className={styles.wizardTitle}>Test your microphone</h2>
+              <p className={styles.wizardDesc}>Say something out loud. The bars below should move when you speak.</p>
+              <div className={styles.wizardMicTest}>
+                <div className={styles.wizardMicBars}>
+                  {[8,18,30,44,60,76,88].map((threshold, i) => (
+                    <div
+                      key={i}
+                      className={`${styles.wizardMicBar} ${micLevel >= threshold ? styles.wizardMicBarOn : ''}`}
+                      style={{ height: `${20 + i * 8}px` }}
+                    />
+                  ))}
+                </div>
+                <div className={styles.wizardMicLabel}>
+                  {micEverDetected ? '🟢 Mic detected' : '🔴 Speak to test your mic'}
+                </div>
+              </div>
+              <button
+                className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtnDisabled}
+                onClick={() => { if (micEverDetected) setCheckStep(3) }}
+                disabled={!micEverDetected}
+              >
+                {micEverDetected ? 'Microphone working ✓ — Next →' : 'Waiting for mic input…'}
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 3: Fullscreen ── */}
+          {checkStep === 3 && (
+            <div className={styles.wizardPane}>
+              <div className={styles.wizardIcon}>⛶</div>
+              <h2 className={styles.wizardTitle}>Enable fullscreen</h2>
+              <p className={styles.wizardDesc}>Your assessment must run in fullscreen mode. Switching tabs or exiting fullscreen will be logged as a violation.</p>
+              <div className={styles.wizardInfoBox}>
+                <div className={styles.wizardInfoRow}><span>⚠️</span> Tab switching is recorded</div>
+                <div className={styles.wizardInfoRow}><span>⚠️</span> Exiting fullscreen is recorded</div>
+                <div className={styles.wizardInfoRow}><span>⚠️</span> Do not refresh the page</div>
+              </div>
+              <button className={styles.wizardBtn} onClick={async () => {
+                await document.documentElement.requestFullscreen?.()
+                setCheckStep(4)
+              }}>
+                Enter fullscreen →
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 4: Instructions ── */}
+          {checkStep === 4 && (
+            <div className={styles.wizardPane}>
+              <div className={styles.wizardIcon}>📋</div>
+              <h2 className={styles.wizardTitle}>You're all set</h2>
+              <p className={styles.wizardDesc}>Read the instructions below before you begin your assessment.</p>
+              <div className={styles.wizardInstructions}>
+                {[
+                  ['🎯', '9 stations', '~30 minutes total. Each station is timed.'],
+                  ['🎤', 'Speak clearly', 'Each station requires a video recording.'],
+                  ['✋', 'Live doubts', 'Student doubts appear on screen during micro-teaching — treat them as real.'],
+                  ['🔒', 'Stay focused', 'Don\'t switch tabs, minimize, or refresh. Each violation is logged.'],
+                ].map(([icon, title, desc], i) => (
+                  <div key={i} className={styles.wizardInstRow}>
+                    <span className={styles.wizardInstIcon}>{icon}</span>
+                    <div>
+                      <div className={styles.wizardInstTitle}>{title}</div>
+                      <div className={styles.wizardInstDesc}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button className={styles.wizardBtnSuccess} onClick={beginAssessment}>
+                Begin assessment →
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     )
