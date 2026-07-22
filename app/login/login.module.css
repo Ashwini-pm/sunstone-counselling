@@ -47,6 +47,12 @@
   color: #fff;
   text-transform: uppercase;
 }
+.leftLogoImg {
+  height: 28px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  margin-bottom: 8px;
+}
 .leftBrandSub {
   font-size: 10px;
   font-weight: 700;
@@ -163,26 +169,11 @@
 }
 
 .rightLogo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin-bottom: 44px;
 }
-.rightLogoMark {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #0d1b3e;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rightLogoName {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0d1b3e;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.rightLogoImg {
+  height: 32px;
+  width: auto;
 }
 
 .rightTitle {

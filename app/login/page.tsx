@@ -17,16 +17,6 @@ function GoogleIcon() {
   )
 }
 
-function SunstoneLogoMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="1" y="1" width="8" height="8" rx="1.5" fill="#fff"/>
-      <rect x="11" y="1" width="8" height="8" rx="1.5" fill="#fff" opacity="0.5"/>
-      <rect x="1" y="11" width="8" height="8" rx="1.5" fill="#fff" opacity="0.5"/>
-      <rect x="11" y="11" width="8" height="8" rx="1.5" fill="#f59e0b"/>
-    </svg>
-  )
-}
 
 export default function LoginPage() {
   const supabase = createClient()
@@ -62,7 +52,7 @@ export default function LoginPage() {
       {/* ── LEFT PANEL ── */}
       <div className={styles.left}>
         <div className={styles.leftBrand}>
-          <span className={styles.leftBrandName}>Sunstone</span>
+          <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.leftLogoImg} />
           <span className={styles.leftBrandSub}>Faculty Assessment</span>
           <span className={styles.leftTagline}>Hiring Platform</span>
         </div>
@@ -105,10 +95,7 @@ export default function LoginPage() {
         <div className={styles.rightInner}>
 
           <div className={styles.rightLogo}>
-            <div className={styles.rightLogoMark}>
-              <SunstoneLogoMark />
-            </div>
-            <span className={styles.rightLogoName}>Sunstone</span>
+            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.rightLogoImg} />
           </div>
 
           <h2 className={styles.rightTitle}>
