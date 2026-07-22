@@ -38,7 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function TestApp({ candidateName, attemptId, role, attemptNumber }: Props) {
   const [steps, setSteps] = useState<Step[]>([])
   const [idx, setIdx] = useState(0)
-  const [stage, setStage] = useState<'ready' | 'station' | 'done'>('ready')
+  const [stage, setStage] = useState<'welcome' | 'ready' | 'station' | 'done'>('welcome')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
   const [planNotes, setPlanNotes] = useState<Record<string, string>>({})
   const [planOpen, setPlanOpen] = useState(true)
@@ -359,6 +359,61 @@ export default function TestApp({ candidateName, attemptId, role, attemptNumber 
       setOverlayMsg('')
       setStage('done')
     }
+  }
+
+  // ── WELCOME ──
+  if (stage === 'welcome') {
+    return (
+      <div className={styles.gateSplit}>
+        {/* Left dark panel */}
+        <div className={styles.gateSplitLeft}>
+          <div className={styles.gateSplitBrand}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateSplitLogo} />
+            <span className={styles.gateSplitSub}>Faculty Assessment</span>
+            <span className={styles.gateSplitTag}>Hiring Platform</span>
+          </div>
+          <div className={styles.gateSplitHero}>
+            <h1 className={styles.gateSplitHeadline}>
+              Your stage.<br />
+              <span className={styles.gateSplitAccent}>Show us how you teach.</span>
+            </h1>
+            <p className={styles.gateSplitBody}>
+              A 30-minute multi-station assessment designed to surface real teaching ability — not rehearsed answers.
+            </p>
+            <div className={styles.gateSplitFeatures}>
+              <div className={styles.gateSplitFeature}><span className={styles.gateSplitFeatureIcon}>🎯</span>9 stations across teaching, communication &amp; domain</div>
+              <div className={styles.gateSplitFeature}><span className={styles.gateSplitFeatureIcon}>✋</span>Live student doubts during micro-teaching</div>
+              <div className={styles.gateSplitFeature}><span className={styles.gateSplitFeatureIcon}>🔍</span>Reviewed by Sunstone's expert panel</div>
+            </div>
+          </div>
+          <div className={styles.gateSplitFooter}>
+            <span className={styles.gateSplitStatus}>
+              <span className={styles.gateSplitDot} />
+              All systems operational
+            </span>
+          </div>
+        </div>
+
+        {/* Right white panel */}
+        <div className={styles.gateSplitRight}>
+          <div className={styles.gateRightInner}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
+            <h2 className={styles.gateRightTitle}>Welcome, {candidateName.split(' ')[0]}</h2>
+            <p className={styles.gateRightSub}>
+              You're about to begin your faculty assessment for <strong>{ROLE_LABELS[role] || role}</strong>. Attempt #{attemptNumber}.
+            </p>
+            <button className={styles.gateGoogleBtn} onClick={() => setStage('ready')}>
+              Check setup &amp; begin →
+            </button>
+            <div className={styles.gateTrustRow}>
+              <span className={styles.gateTrustItem}>⏱ ~30 minutes</span>
+              <span className={styles.gateTrustItem}>🎥 Video recorded</span>
+              <span className={styles.gateTrustItem}>🔒 Secure</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ── READY ──
