@@ -36,7 +36,8 @@
 .leftBrand {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 6px;
   position: relative;
   z-index: 1;
 }
@@ -48,10 +49,12 @@
   text-transform: uppercase;
 }
 .leftLogoImg {
-  height: 28px;
+  height: 26px;
   width: auto;
+  max-width: 180px;
   filter: brightness(0) invert(1);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  display: block;
 }
 .leftBrandSub {
   font-size: 10px;
