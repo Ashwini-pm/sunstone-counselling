@@ -316,7 +316,7 @@ export default function AdminDashboard({
                   {filteredSets.length === 0 ? (
                     <tr><td colSpan={7} className={styles.emptyRow}>No leads found</td></tr>
                   ) : filteredSets.map(s => {
-                    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/q/${s.id}/${s.lead_id}/1`
+                    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/q/${s.access_token}`
                     return (
                       <tr key={s.id}>
                         <td>

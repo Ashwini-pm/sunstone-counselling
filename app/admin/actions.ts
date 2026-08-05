@@ -43,7 +43,7 @@ export async function createLeadLink(formData: FormData) {
   if (!name || !email) return { error: 'Name and email are required' }
 
   try {
-    const { leadId, setId } = await createLeadAndSet({
+    const { accessToken } = await createLeadAndSet({
       name,
       email,
       phone10: toPhone10(phone),
@@ -52,7 +52,8 @@ export async function createLeadLink(formData: FormData) {
       createdBy: admin.id || null,
     })
 
-    const link = `${await requestOrigin()}/q/${setId}/${leadId}/1`
+    // The token is the credential; no sign-in needed.
+    const link = `${await requestOrigin()}/q/${accessToken}`
     revalidatePath('/admin')
     return { link, leadName: name }
   } catch (err) {

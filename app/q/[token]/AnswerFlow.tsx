@@ -73,11 +73,13 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // locked until the lead has actually heard the question.
   const [avatarDone, setAvatarDone] = useState<Record<string, boolean>>({})
 
-  // Call-view state. selfMain follows who is speaking: the counsellor holds the
-  // main tile while the clip plays, then the lead takes it to answer. Tapping
-  // either tile overrides it.
-  const [selfMain, setSelfMain] = useState(false)
+  // The counsellor holds the main tile for the whole question and the lead stays
+  // in the corner. An earlier version handed the main tile over once the clip
+  // ended, which left the counsellor frozen on a last frame in a thumbnail.
   const [captionOpen, setCaptionOpen] = useState(true)
+  // Looping clip of the counsellor listening. Null until one is generated, in
+  // which case the frozen last frame plus a CSS drift is used instead.
+  const [idleUrl, setIdleUrl] = useState<string | null>(null)
 
   const [globalElapsed, setGlobalElapsed] = useState(0)
   const globalElapsedRef = useRef(0)
@@ -175,10 +177,11 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attemptId }),
       })
-      const { questions: drawn, closingUrl: closing, error } = await res.json()
+      const { questions: drawn, closingUrl: closing, idleUrl: idle, error } = await res.json()
       if (error) throw new Error(error)
       setQuestions(drawn as AttemptQuestion[])
       setClosingUrl(closing ?? null)
+      setIdleUrl(idle ?? null)
     } catch {
       setOverlayMsg('')
       alert('Could not load your questions. Please refresh and try again.')
@@ -316,7 +319,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       if (tickRef.current) clearInterval(tickRef.current)
       setRecording(false)
       setElapsed(0)
-      setSelfMain(false)      // next counsellor clip takes the main tile
       setCaptionOpen(true)
       setIdx(i => i + 1)
       return
@@ -572,8 +574,11 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // A question whose video has not been generated has nothing to watch, so the
   // lead takes the main tile and the counsellor tile is not rendered at all.
   const hasAvatar = !!question.avatarUrl
-  // While recording the lead should always see themselves large.
-  const avatarIsMain = hasAvatar && !selfMain && !recording
+  const avatarIsMain = hasAvatar
+  // The clip is finite: once it ends the element holds its final frame, which
+  // reads as a dead photo. Prefer a looping idle clip, else a CSS drift.
+  const clipEnded = !!avatarDone[questionId]
+  const showIdle = clipEnded && !!idleUrl
 
   return (
     <div className={styles.callStage}>
@@ -592,41 +597,43 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         restarted by React tearing it down and rebuilding it.
       */}
 
-      {/* Counsellor tile, only when a clip exists for this question */}
+      {/* Counsellor tile. Always the main tile while a clip exists. */}
       {hasAvatar && (
-        <div
-          className={avatarIsMain ? styles.callMain : styles.callPip}
-          onClick={avatarIsMain ? undefined : () => setSelfMain(false)}
-          role={avatarIsMain ? undefined : 'button'}
-          aria-label={avatarIsMain ? undefined : 'Show the counsellor'}
-        >
+        <div className={`${styles.callMain} ${clipEnded && !idleUrl ? styles.callIdle : ''}`}>
+          {/* Hidden rather than unmounted once the idle loop takes over, so
+              replaying does not have to refetch the clip. */}
           <video
             ref={avatarRef}
             key={questionId}
             src={question.avatarUrl!}
             autoPlay
             playsInline
-            onEnded={() => {
-              setAvatarDone(prev => ({ ...prev, [questionId]: true }))
-              setSelfMain(true)   // hand the floor over, like a call
-            }}
+            style={showIdle ? { display: 'none' } : undefined}
+            onEnded={() => setAvatarDone(prev => ({ ...prev, [questionId]: true }))}
           />
-          {!avatarIsMain && <span className={styles.callPipLabel}>Counsellor</span>}
-          {!avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
+          {/* Muted: a repeating voice would be maddening. */}
+          {showIdle && <video src={idleUrl!} autoPlay loop muted playsInline />}
+
+          {clipEnded && !recording && (
+            <button
+              className={styles.callReplayOverlay}
+              onClick={() => {
+                setAvatarDone(prev => ({ ...prev, [questionId]: false }))
+                replayAvatar()
+              }}
+            >
+              ↻ Play the question again
+            </button>
+          )}
         </div>
       )}
 
-      {/* Lead tile */}
-      <div
-        className={`${avatarIsMain ? styles.callPip : styles.callMain} ${styles.callSelfMirror}`}
-        onClick={avatarIsMain ? () => setSelfMain(true) : undefined}
-        role={avatarIsMain ? 'button' : undefined}
-        aria-label={avatarIsMain ? 'Show yourself' : undefined}
-      >
+      {/* Lead tile. Always the corner tile, so the lead can see their framing. */}
+      <div className={`${hasAvatar ? styles.callPip : styles.callMain} ${styles.callSelfMirror}`}>
         <video ref={videoRef} autoPlay muted playsInline />
         {!stream && (
           <div className={styles.callCamOff}>
-            <span style={{ fontSize: 32 }}>📷</span>
+            <span style={{ fontSize: 28 }}>📷</span>
             <span>Camera is off</span>
             {!camError && (
               <button className={styles.callBtnNext} onClick={enableCamera}>
@@ -636,8 +643,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             {camError && <span style={{ color: '#fca5a5' }}>{camError}</span>}
           </div>
         )}
-        {avatarIsMain && hasAvatar && <span className={styles.callPipLabel}>You</span>}
-        {avatarIsMain && hasAvatar && <span className={styles.callSwapHint}>⇄</span>}
+        {hasAvatar && <span className={styles.callPipLabel}>You</span>}
       </div>
 
       {/* Top bar */}

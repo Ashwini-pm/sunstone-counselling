@@ -2403,3 +2403,51 @@
   .callControls { padding-bottom: 10px; }
   .callBtnRec, .callBtnStop { width: 54px; height: 54px; border-width: 3px; }
 }
+
+/* ── Idle state after the counsellor's clip ends ─────────────────────────────
+   A finite clip leaves the element on its final frame, which looks like a dead
+   photograph. Preferred fix is a looping idle clip (bank='idle'); this slow
+   drift is the fallback when none has been generated.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.callIdle video {
+  animation: callIdleDrift 14s ease-in-out infinite;
+  transform-origin: 50% 42%;   /* bias toward the face, not the frame centre */
+}
+
+@keyframes callIdleDrift {
+  0%   { transform: scale(1.00) translateY(0); }
+  50%  { transform: scale(1.035) translateY(-0.6%); }
+  100% { transform: scale(1.00) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .callIdle video { animation: none; }
+}
+
+.callReplayOverlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(8, 11, 18, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 11px 18px;
+  border-radius: 999px;
+  min-height: 44px;
+  cursor: pointer;
+  z-index: 23;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.callReplayOverlay:active { transform: translate(-50%, -50%) scale(0.96); }
+
+/* The corner tile is fixed now, so it is no longer interactive. */
+.callPip { cursor: default; }
+.callPip:active { transform: none; }

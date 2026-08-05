@@ -154,18 +154,27 @@ async function uploadToS3(key, bytes) {
 const dryRun = process.argv.includes('--dry-run')
 const limitArg = process.argv.indexOf('--limit')
 const limit = limitArg > -1 ? parseInt(process.argv[limitArg + 1]) || 0 : 0
+// --bank idle  targets one bank; without it --limit picks by sort_order and can
+// grab the wrong row entirely.
+const bankArg = process.argv.indexOf('--bank')
+const bankFilter = bankArg > -1 ? process.argv[bankArg + 1] : null
 
 // HTTP driver, not the WebSocket Client: renders take minutes each and a
 // persistent socket dies mid-run, taking the whole batch down with it.
 const sql = neon(DATABASE_URL)
 
 try {
-  const pending = await sql`
-    select id, bank, position_group, sort_order, content
-    from questions
-    where avatar_url is null and active
-    order by sort_order asc
-  `
+  const pending = bankFilter
+    ? await sql`
+        select id, bank, position_group, sort_order, content
+        from questions
+        where avatar_url is null and active and bank = ${bankFilter}
+        order by sort_order asc`
+    : await sql`
+        select id, bank, position_group, sort_order, content
+        from questions
+        where avatar_url is null and active
+        order by sort_order asc`
 
   const queue = limit ? pending.slice(0, limit) : pending
 
@@ -177,7 +186,7 @@ try {
     console.log(`voice:     ${VOICE_ID}${LOCALE ? `  locale=${LOCALE}` : '  (no locale set)'}\n`)
     console.log(`${queue.length} to render:\n`)
     for (const q of queue) {
-      const tag = q.bank === 'closing' ? 'CLOSING' : `Q${q.sort_order}`
+      const tag = q.bank === 'behavioral' ? `Q${q.sort_order}` : q.bank.toUpperCase()
       console.log(`  ${tag.padEnd(8)} ${q.content.slice(0, 66).replace(/\n/g, ' ')}…`)
     }
 
@@ -188,7 +197,7 @@ try {
       let failures = 0
 
       for (const [i, q] of queue.entries()) {
-        const tag = q.bank === 'closing' ? 'CLOSING' : `Q${q.sort_order}`
+        const tag = q.bank === 'behavioral' ? `Q${q.sort_order}` : q.bank.toUpperCase()
         process.stdout.write(`[${i + 1}/${queue.length}] ${tag} … `)
         try {
           const videoId = await createVideo(q.content)

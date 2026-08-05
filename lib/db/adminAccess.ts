@@ -10,6 +10,7 @@ import { sql } from '@/lib/db'
 
 export interface AdminSetRow {
   id: string
+  access_token: string
   created_at: string
   expires_at: string
   lead_id: string | null
@@ -27,6 +28,7 @@ export async function recentSets(limit = 200): Promise<AdminSetRow[]> {
   return await sql`
     select
       s.id,
+      s.access_token,
       s.created_at,
       s.expires_at,
       l.id    as lead_id,
@@ -79,7 +81,7 @@ export async function createLeadAndSet(input: {
   source: string | null
   city: string | null
   createdBy: string | null
-}): Promise<{ leadId: string; setId: string }> {
+}): Promise<{ leadId: string; setId: string; accessToken: string }> {
   const leadRows = await sql`
     insert into leads (name, email, phone10, source, city, created_by)
     values (
@@ -99,10 +101,10 @@ export async function createLeadAndSet(input: {
   const setRows = await sql`
     insert into question_sets (lead_id, created_by)
     values (${leadId}, ${input.createdBy})
-    returning id
-  ` as { id: string }[]
+    returning id, access_token
+  ` as { id: string; access_token: string }[]
 
-  return { leadId, setId: setRows[0].id }
+  return { leadId, setId: setRows[0].id, accessToken: setRows[0].access_token }
 }
 
 export interface AdminAnswerRow {

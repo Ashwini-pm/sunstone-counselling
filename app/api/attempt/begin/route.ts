@@ -1,4 +1,4 @@
-import { currentEmail } from '@/lib/auth'
+import { currentLead } from '@/lib/leadSession'
 import { ownedAttempt } from '@/lib/db/leadAccess'
 import { sql } from '@/lib/db'
 import { getS3SignedUrl } from '@/lib/s3'
@@ -44,9 +44,24 @@ async function closingAvatar(): Promise<string | null> {
   return signAvatar(rows[0]?.avatar_url ?? null)
 }
 
+/**
+ * A short looping clip of the counsellor listening, played while the lead
+ * answers so the main tile is not a frozen final frame. Optional: without it
+ * the client falls back to a CSS drift on the last frame.
+ */
+async function idleAvatar(): Promise<string | null> {
+  const rows = await sql`
+    select avatar_url from questions
+    where bank = 'idle' and active
+    order by sort_order asc
+    limit 1
+  ` as { avatar_url: string | null }[]
+  return signAvatar(rows[0]?.avatar_url ?? null)
+}
+
 export async function POST(req: Request) {
-  const email = await currentEmail()
-  if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const lead = await currentLead()
+  if (!lead) return NextResponse.json({ error: 'No active session' }, { status: 401 })
 
   const { attemptId } = await req.json()
   if (!attemptId) {
@@ -55,7 +70,7 @@ export async function POST(req: Request) {
 
   // Ownership first. Everything below reads by attemptId alone, so this check
   // is what keeps one lead out of another's questions.
-  const attempt = await ownedAttempt(attemptId, email)
+  const attempt = await ownedAttempt(attemptId, lead.leadId)
   if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 })
   if (attempt.status === 'submitted') {
     return NextResponse.json({ error: 'Attempt already submitted' }, { status: 409 })
@@ -83,7 +98,11 @@ export async function POST(req: Request) {
         durationSec: row.duration_sec,
       })),
     )
-    return NextResponse.json({ questions, closingUrl: await closingAvatar() })
+    return NextResponse.json({
+      questions,
+      closingUrl: await closingAvatar(),
+      idleUrl: await idleAvatar(),
+    })
   }
 
   // First entry: draw one question per position_group from the assigned bank.
@@ -149,5 +168,9 @@ export async function POST(req: Request) {
     })),
   )
 
-  return NextResponse.json({ questions, closingUrl: await closingAvatar() })
+  return NextResponse.json({
+      questions,
+      closingUrl: await closingAvatar(),
+      idleUrl: await idleAvatar(),
+    })
 }
