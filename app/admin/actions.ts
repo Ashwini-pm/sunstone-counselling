@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { currentAdmin } from '@/lib/auth'
 import { createLeadAndSet, recentSets, bankStatus, type AdminSetRow } from '@/lib/db/adminAccess'
 
@@ -12,6 +13,21 @@ function toPhone10(raw: string | null): string | null {
   if (!raw) return null
   const digits = raw.replace(/\D/g, '')
   return digits.length >= 10 ? digits.slice(-10) : digits || null
+}
+
+/**
+ * The origin of the request being served.
+ *
+ * Derived from headers rather than NEXT_PUBLIC_APP_URL so a link generated on
+ * localhost points at localhost and one generated on Vercel points at Vercel,
+ * with no env var to set wrongly. Vercel sets x-forwarded-*; local dev sets host.
+ */
+async function requestOrigin(): Promise<string> {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  if (!host) return process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
 }
 
 export async function createLeadLink(formData: FormData) {
@@ -36,7 +52,7 @@ export async function createLeadLink(formData: FormData) {
       createdBy: admin.id || null,
     })
 
-    const link = `${process.env.NEXT_PUBLIC_APP_URL}/q/${setId}/${leadId}/1`
+    const link = `${await requestOrigin()}/q/${setId}/${leadId}/1`
     revalidatePath('/admin')
     return { link, leadName: name }
   } catch (err) {

@@ -57,6 +57,8 @@ function IconCheck() {
 
 export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [questions, setQuestions] = useState<AttemptQuestion[]>([])
+  // Spoken closing, played after submit. Null until generated.
+  const [closingUrl, setClosingUrl] = useState<string | null>(null)
   const [idx, setIdx] = useState(0)
   const [stage, setStage] = useState<'welcome' | 'ready' | 'question' | 'done'>('welcome')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
@@ -167,9 +169,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attemptId }),
       })
-      const { questions: drawn, error } = await res.json()
+      const { questions: drawn, closingUrl: closing, error } = await res.json()
       if (error) throw new Error(error)
       setQuestions(drawn as AttemptQuestion[])
+      setClosingUrl(closing ?? null)
     } catch {
       setOverlayMsg('')
       alert('Could not load your questions. Please refresh and try again.')
@@ -528,6 +531,17 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     return (
       <div className={styles.donePage}>
         <div className={styles.doneCard}>
+          {closingUrl && (
+            <div className={styles.avatarVideoWrap} style={{ marginBottom: 20 }}>
+              <video
+                src={closingUrl}
+                className={styles.avatarVideo}
+                autoPlay
+                playsInline
+                controls
+              />
+            </div>
+          )}
           <div className={styles.doneCheck}>✓</div>
           <h2>All done, thank you</h2>
           <p>

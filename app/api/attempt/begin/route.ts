@@ -32,6 +32,18 @@ async function signAvatar(url: string | null): Promise<string | null> {
   return key ? getS3SignedUrl(key, 3600) : url
 }
 
+
+/** The spoken closing, played on the done screen. Not a question. */
+async function closingAvatar(): Promise<string | null> {
+  const rows = await sql`
+    select avatar_url from questions
+    where bank = 'closing' and active
+    order by sort_order asc
+    limit 1
+  ` as { avatar_url: string | null }[]
+  return signAvatar(rows[0]?.avatar_url ?? null)
+}
+
 export async function POST(req: Request) {
   const email = await currentEmail()
   if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -71,7 +83,7 @@ export async function POST(req: Request) {
         durationSec: row.duration_sec,
       })),
     )
-    return NextResponse.json({ questions })
+    return NextResponse.json({ questions, closingUrl: await closingAvatar() })
   }
 
   // First entry: draw one question per position_group from the assigned bank.
@@ -137,5 +149,5 @@ export async function POST(req: Request) {
     })),
   )
 
-  return NextResponse.json({ questions })
+  return NextResponse.json({ questions, closingUrl: await closingAvatar() })
 }
