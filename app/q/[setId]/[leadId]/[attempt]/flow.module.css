@@ -28,6 +28,7 @@
 /* ── GATE WRAPPER (auth screens) ── */
 .gate {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,6 +84,7 @@
 /* ── READY SCREEN ── */
 .readyPage {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,6 +188,7 @@
 /* ── DONE SCREEN ── */
 .donePage {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -246,6 +249,7 @@
 /* ── STATION WRAP ── */
 .stationWrap {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--t-bg);
   display: flex;
   flex-direction: column;
@@ -340,6 +344,7 @@
   padding-top: 64px;
   padding-bottom: 72px;
   height: 100vh;
+  height: 100dvh;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -1232,6 +1237,7 @@
 ══════════════════════════════ */
 .gateSplit {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
@@ -1469,6 +1475,7 @@
 ══════════════════════════════ */
 .wizardPage {
   min-height: 100vh;
+  min-height: 100dvh;
   background: #f8fafc;
   display: flex;
   flex-direction: column;
@@ -1739,4 +1746,238 @@
   font-weight: 700;
   font-family: inherit;
   cursor: not-allowed;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE
+   Leads open these links on phones, so this is the primary surface, not an
+   afterthought. Two things drive the layout below:
+     1. The two-pane desktop grid must stack, avatar first then camera, so the
+        lead hears the question before the record control comes into view.
+     2. The Next button must stay reachable with a thumb, so the bottom bar is
+        fixed and the scroll area is padded to clear it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+
+  /* ── Question screen ─────────────────────────────────────────────────── */
+
+  .topNav {
+    height: 52px;
+    padding: 0 14px;
+  }
+  .sunstoneLogo { height: 18px; }
+  .topCenter {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+  .timerPill {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+
+  /* Stack the panes and let the page scroll rather than each pane. */
+  .twoPaneMain {
+    grid-template-columns: 1fr;
+    padding-top: 52px;
+    padding-bottom: 84px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .leftPane,
+  .rightPane {
+    padding: 12px 14px;
+    gap: 12px;
+    overflow: visible;
+  }
+  .leftPane { padding-bottom: 0; }
+
+  /* Avatar: prominent but capped so the record control is not pushed far
+     below the fold on short screens. */
+  .avatarCard { padding: 12px; }
+  .avatarVideoWrap {
+    max-height: 34vh;
+    border-radius: 10px;
+  }
+  .avatarVideo {
+    width: 100%;
+    height: auto;
+    max-height: 34vh;
+    object-fit: cover;
+  }
+
+  .questionBlock { padding: 14px; }
+  .questionLabel { font-size: 10px; }
+  .questionText {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  /* The lead's own camera. 4:3 keeps a head-and-shoulders framing on phones
+     rather than the letterboxed strip a 16:9 box gives in portrait. */
+  .vidWrap {
+    aspect-ratio: 4 / 3;
+    max-height: 42vh;
+    border-radius: 10px;
+  }
+  .tileHeader { padding: 0 2px; }
+  .tileLabel { font-size: 11px; }
+
+  /* Touch targets. 44px is the accessibility floor for a thumb. */
+  .startRecBtn {
+    width: 76px;
+    height: 76px;
+    font-size: 30px;
+  }
+  .startRecLabel {
+    font-size: 12px;
+    text-align: center;
+    padding: 0 16px;
+  }
+  .floatStopBtn {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+  }
+  .deleteBtn,
+  .enableCamBtn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+  .recBadge,
+  .elapsedBadge,
+  .recDoneBadge { font-size: 11px; }
+  .liveMicBadge { transform: scale(0.85); }
+
+  /* Fixed bottom bar so Next is always in reach. */
+  .bottomBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    min-height: 68px;
+    padding: 10px 14px;
+    /* clear the iPhone home indicator */
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    z-index: 30;
+  }
+  .progressSection { flex: 1; min-width: 0; }
+  .progressLabel { font-size: 11px; }
+  .stepLabel, .pctLabel { font-size: 11px; }
+  .bottomActions { flex-shrink: 0; }
+  .nextBtn {
+    min-height: 46px;
+    padding: 0 18px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  /* ── Setup wizard ────────────────────────────────────────────────────── */
+
+  .wizardNav {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .wizardNavLogo { height: 18px; }
+  .wizardNavSpacer { display: none; }
+  /* Step labels do not fit two abreast on a phone; keep the numbered dots. */
+  .wizardStepLabel { display: none; }
+  .wizardSteps {
+    gap: 6px;
+    flex: 1;
+    justify-content: flex-end;
+  }
+  .wizardStepLine { width: 18px; }
+
+  .wizardBody { padding: 20px 14px 32px; }
+  .wizardPane { max-width: 100%; }
+  .wizardTitle { font-size: 20px; }
+  .wizardDesc {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .wizardIconWrap { margin-bottom: 12px; }
+  .wizardPreviewWrap {
+    aspect-ratio: 4 / 3;
+    max-height: 38vh;
+  }
+  .wizardBtn,
+  .wizardBtnSuccess,
+  .wizardBtnDisabled {
+    min-height: 50px;
+    font-size: 15px;
+    width: 100%;
+  }
+  .wizardInstRow { gap: 10px; }
+  .wizardInstTitle { font-size: 14px; }
+  .wizardInstDesc {
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .wizardMicBarRow { gap: 10px; }
+
+  /* ── Gate and welcome ────────────────────────────────────────────────── */
+
+  .gateSplitRight { padding: 28px 18px; }
+  .gateRightTitle { font-size: 22px; }
+  .gateRightSub {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .gateGoogleBtn {
+    min-height: 50px;
+    font-size: 15px;
+  }
+  .gateTrustRow {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .gateTrustItem { font-size: 11px; }
+
+  /* ── Done screen ─────────────────────────────────────────────────────── */
+
+  .donePage { padding: 20px 14px; }
+  .doneCard {
+    padding: 24px 18px;
+    max-width: 100%;
+  }
+  .doneCard h2 { font-size: 20px; }
+  .doneCard p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Overlays */
+  .ovCard { margin: 0 20px; }
+  .ovMsg { font-size: 14px; }
+}
+
+/* Very small phones, roughly iPhone SE and below. */
+@media (max-width: 380px) {
+  .avatarVideoWrap, .avatarVideo { max-height: 28vh; }
+  .vidWrap { max-height: 34vh; }
+  .startRecBtn { width: 66px; height: 66px; font-size: 26px; }
+  .questionText { font-size: 14px; }
+  .nextBtn { padding: 0 14px; font-size: 13px; }
+  .pctLabel { display: none; }
+}
+
+/* Landscape on a phone: very little vertical room, so go back to side by side
+   and shrink the chrome rather than stacking into an unusable column. */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .twoPaneMain {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 62px;
+  }
+  .avatarVideoWrap, .avatarVideo { max-height: 46vh; }
+  .vidWrap { aspect-ratio: 16 / 9; max-height: 46vh; }
+  .bottomBar { min-height: 54px; }
+  .topNav { height: 44px; }
+  .twoPaneMain { padding-top: 44px; }
 }

@@ -1,6 +1,7 @@
 /* ── Page: two-column split ── */
 .page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
@@ -269,6 +270,23 @@
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .page { grid-template-columns: 1fr; }
+  /* The marketing panel is decorative; drop it and give the form the screen. */
   .left { display: none; }
-  .right { padding: 40px 28px; min-height: 100vh; }
+  .right {
+    padding: 32px 20px;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .rightLogoImg { height: 24px; }
+  .rightTitle { font-size: 22px; }
+  .rightSub { font-size: 14px; line-height: 1.55; }
+  .btn { min-height: 50px; font-size: 15px; }
+  .error { font-size: 13px; line-height: 1.5; }
+  .restriction { font-size: 12px; }
+  .trustRow {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .trustItem { font-size: 11px; }
 }

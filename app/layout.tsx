@@ -1,10 +1,19 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Providers from './providers'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Sunstone · Lead Response Center',
   description: 'Video question and response platform for NSAT and CSAT leads',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Leads answer on phones. Allow zoom (accessibility) but keep the default
+  // scale fixed so iOS does not zoom when a text field is focused.
+  maximumScale: 5,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -28,6 +28,7 @@
 
 .wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--a-surface);
   font-family: 'Hanken Grotesk', -apple-system, sans-serif;
 }
@@ -586,3 +587,176 @@
   white-space: nowrap;
 }
 .copyTestBtn:hover { background: var(--a-surface-high); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE / TABLET
+   The admin panel is mostly used at a desk, but it has to be usable on a
+   phone for checking the backlog on the move. The table is the hard part: a
+   7-column table cannot shrink into 375px, so below 900px each row becomes a
+   stacked card with its column name as a label.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1100px) {
+  .content { padding: 16px; }
+  .formRow {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .formField {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+
+  /* Header: let the source tabs scroll sideways rather than wrap into a wall. */
+  .top {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .sunstoneLogo { height: 20px; }
+  .tabPillGroup {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .tabPillGroup::-webkit-scrollbar { display: none; }
+  .pageTab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+  .topRight {
+    margin-left: auto;
+    gap: 8px;
+  }
+  .adminName {
+    font-size: 12px;
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .logoutBtn { min-height: 40px; }
+
+  .content { padding: 14px; }
+
+  /* Stats: three across is too cramped, so wrap to two. */
+  .statsRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .statNum { font-size: 24px; }
+  .statLabel { font-size: 11px; }
+
+  .card { padding: 16px; }
+  .heading { font-size: 14px; }
+  .formField { flex: 1 1 100%; }
+  .input, .btn { min-height: 46px; }
+  .btn { width: 100%; }
+
+  /* Generated link: long URLs must wrap, not blow out the layout. */
+  .linkRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .linkText {
+    font-size: 11px;
+    word-break: break-all;
+    white-space: normal;
+  }
+  .copyBtn { min-height: 44px; }
+  .linkNote { font-size: 12px; line-height: 1.5; }
+
+  /* Section header stacks above its controls. */
+  .tabRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .tableActions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .dateFilters { flex: 1 1 auto; }
+  .dateInput { min-height: 42px; flex: 1; }
+  .csvBtn { min-height: 42px; }
+
+  /* ── Table becomes cards ─────────────────────────────────────────────── */
+
+  .tableScroll { overflow-x: visible; }
+  .table { display: block; }
+  .table thead { display: none; }
+  .table tbody { display: block; }
+
+  .table tr {
+    display: block;
+    background: #fff;
+    border: 1px solid #e6e8ea;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border: none;
+    text-align: left !important;
+    width: auto;
+  }
+  /* The label comes from data-label on the cell, set in the component. */
+  .table td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #76777d;
+    flex-shrink: 0;
+  }
+  /* The lead name cell is the card title, so it gets no label and full width. */
+  .table td:first-child {
+    display: block;
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #f0f2f4;
+  }
+  .table td:first-child::before { content: none; }
+  .candName { font-size: 15px; font-weight: 700; }
+  .candEmail { font-size: 12px; word-break: break-all; }
+
+  .table td:last-child {
+    justify-content: flex-start;
+    gap: 14px;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px solid #f0f2f4;
+  }
+  .profileLink, .reviewLink {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .copyTestBtn { min-height: 40px; }
+  .emptyRow { display: block; text-align: center; padding: 24px 0; }
+
+  .tableFooter {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    text-align: center;
+  }
+  .paginationBtns { justify-content: center; }
+  .pageBtn { min-width: 44px; min-height: 40px; }
+}

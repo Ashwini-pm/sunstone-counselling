@@ -323,19 +323,19 @@ export default function AdminDashboard({
                           <div className={styles.candName}>{s.lead_name || '—'}</div>
                           <div className={styles.candEmail}>{s.lead_email || ''}</div>
                         </td>
-                        <td className={styles.tdCenter}>
+                        <td className={styles.tdCenter} data-label="Source">
                           {s.lead_source
                             ? <span className={`${styles.pill} ${styles.grey}`}>{SOURCE_LABELS[s.lead_source] || s.lead_source}</span>
                             : <span className={styles.scoreDash}>—</span>}
                         </td>
-                        <td className={styles.tdCenter}>{statusPill(s)}</td>
-                        <td className={styles.tdCenter}>
+                        <td className={styles.tdCenter} data-label="Status">{statusPill(s)}</td>
+                        <td className={styles.tdCenter} data-label="Answers">
                           <span className={styles.attemptsNum}>{s.answer_count}</span>
                         </td>
-                        <td>
+                        <td data-label="Created">
                           {new Date(s.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </td>
-                        <td className={styles.tdCenter}>
+                        <td className={styles.tdCenter} data-label="Link">
                           <button
                             type="button"
                             className={styles.copyTestBtn}

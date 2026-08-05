@@ -22,6 +22,7 @@
 /* ── Shell ── */
 .wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--e-bg);
   font-family: 'Hanken Grotesk', -apple-system, sans-serif;
   color: var(--e-ink);
@@ -110,6 +111,7 @@
   padding-left: 48px;
   padding-right: 48px;
   height: 100vh;
+  height: 100dvh;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -901,3 +903,103 @@
   margin-bottom: 8px;
 }
 .questionText { font-size: 15px; line-height: 1.6; margin: 0; color: var(--a-ink); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE / TABLET
+   The question sidebar becomes a horizontal strip of pills above the video,
+   so the answer itself gets the full width on a phone.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1000px) {
+  .shell { padding: 0; }
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Question list: vertical rail becomes a scrolling row of pills. */
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e6e8ea;
+    padding: 10px 12px;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 5;
+  }
+  .sidebarHeading { margin-bottom: 8px; font-size: 11px; }
+  .sidebarNav {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .sidebarNav::-webkit-scrollbar { display: none; }
+  .sideItem {
+    flex-shrink: 0;
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .mainPanel { padding: 14px; }
+}
+
+@media (max-width: 760px) {
+  .topNav {
+    height: auto;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .navLogo { height: 18px; }
+  .navBreadcrumb { font-size: 12px; }
+
+  /* Lead identity bar stacks. */
+  .candBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+  }
+  .candLeft {
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+  }
+  .candDivider { display: none; }
+  .candAvatar { width: 40px; height: 40px; font-size: 14px; }
+  .candName { font-size: 15px; }
+  .candEmail { font-size: 12px; word-break: break-all; }
+  .candMeta { flex-direction: row; gap: 6px; align-items: baseline; }
+  .candMetaLabel { font-size: 10px; }
+  .candMetaVal { font-size: 13px; }
+
+  .badges {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .badge { font-size: 11px; min-height: 32px; }
+
+  .stationTitle { font-size: 17px; }
+  .stationBlurb { font-size: 12.5px; }
+  .videoArea video { border-radius: 10px; }
+  .noVideo { font-size: 13px; padding: 28px 14px; }
+  .questionBox { padding: 14px; }
+  .questionText { font-size: 14px; line-height: 1.55; }
+
+  /* Prev / Next stay reachable. */
+  .panelFooter {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .footerNav { display: flex; gap: 10px; }
+  .navBtn { flex: 1; min-height: 46px; font-size: 14px; }
+}
