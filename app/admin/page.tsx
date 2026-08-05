@@ -1,21 +1,20 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getRecentTests } from './actions'
+import { currentAdmin, auth } from '@/lib/auth'
+import { getRecentSets, getBankStatus } from './actions'
 import AdminDashboard from './AdminDashboard'
 
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const admin = await currentAdmin()
+  if (!admin) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('name, email')
-    .eq('id', user.id)
-    .single()
+  const session = await auth()
+  const [recentSets, bank] = await Promise.all([getRecentSets(), getBankStatus()])
 
-  const recentTests = await getRecentTests()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return <AdminDashboard adminName={profile?.name || user.email || 'Admin'} recentTests={recentTests as any} />
+  return (
+    <AdminDashboard
+      adminName={session?.user?.name || admin.email}
+      recentSets={recentSets}
+      bank={bank}
+    />
+  )
 }

@@ -1,30 +1,24 @@
-import { NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { currentEmail } from '@/lib/auth'
+import { ownsAttemptQuestion, saveRecording } from '@/lib/db/leadAccess'
 
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST(request: Request) {
+  const email = await currentEmail()
+  if (!email) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { attemptId, stationId, s3Url, durationSec, planNotes } = await request.json()
-
-  if (!attemptId || !stationId || !s3Url) {
+  const { attemptId, questionId, s3Url, durationSec } = await request.json()
+  if (!attemptId || !questionId || !s3Url) {
     return Response.json({ error: 'Missing fields' }, { status: 400 })
   }
 
-  const { error } = await supabase
-    .from('recordings')
-    .upsert({
-      attempt_id: attemptId,
-      station_id: stationId,
-      r2_url: s3Url,
-      duration_sec: durationSec || 0,
-      plan_notes: planNotes || null,
-    }, { onConflict: 'attempt_id,station_id' })
+  if (!(await ownsAttemptQuestion(attemptId, questionId, email))) {
+    return Response.json({ error: 'Not your attempt' }, { status: 403 })
+  }
 
-  if (error) {
-    console.error('[upload] Supabase error:', error.message)
-    return Response.json({ error: error.message }, { status: 500 })
+  try {
+    await saveRecording(attemptId, questionId, s3Url, durationSec || 0)
+  } catch (err) {
+    console.error('[upload] save failed:', err)
+    return Response.json({ error: 'Could not save recording' }, { status: 500 })
   }
 
   return Response.json({ url: s3Url })

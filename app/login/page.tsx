@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import styles from './login.module.css'
 
 function GoogleIcon() {
@@ -19,29 +19,27 @@ function GoogleIcon() {
 
 
 export default function LoginPage() {
-  const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const isReviewerFlow =
+  // Set when middleware bounced a signed-in non-admin off /admin.
+  const denied =
     typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('next')?.startsWith('/review/')
+    new URLSearchParams(window.location.search).get('denied') === '1'
+
+  const isReviewerFlow = false
 
   async function handleGoogleLogin() {
     setError('')
     setLoading(true)
     const params = new URLSearchParams(window.location.search)
-    const next = params.get('next') || '/'
-    const reviewer = next.startsWith('/review/')
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        queryParams: reviewer ? {} : { hd: 'sunstone.in' },
-      },
-    })
-    if (error) {
-      setError(error.message)
+    const next = params.get('next') || '/admin'
+    try {
+      // hd is a hint, not enforcement — the real check is the role assigned in
+      // lib/auth.ts and the middleware guard on /admin.
+      await signIn('google', { callbackUrl: next }, { hd: 'sunstone.in' })
+    } catch {
+      setError('Sign in failed. Please try again.')
       setLoading(false)
     }
   }
@@ -53,7 +51,7 @@ export default function LoginPage() {
       <div className={styles.left}>
         <div className={styles.leftBrand}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.leftLogoImg} />
-          <span className={styles.leftBrandSub}>Faculty Assessment</span>
+          <span className={styles.leftBrandSub}>Lead Response Center</span>
           <span className={styles.leftTagline}>Hiring Platform</span>
         </div>
 
@@ -107,6 +105,11 @@ export default function LoginPage() {
               : 'Sign in with your Sunstone Google account to access the assessment.'}
           </p>
 
+          {denied && (
+            <p className={styles.error} role="alert">
+              That account is not a Sunstone admin. Sign in with your @sunstone.in address.
+            </p>
+          )}
           {error && <p className={styles.error} role="alert">{error}</p>}
 
           <div className={styles.dividerRow}>

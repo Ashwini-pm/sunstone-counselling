@@ -1,120 +1,141 @@
-import { createClient } from '@/lib/supabase/server'
+import { currentEmail } from '@/lib/auth'
+import { ownedAttempt } from '@/lib/db/leadAccess'
+import { sql } from '@/lib/db'
+import { getS3SignedUrl } from '@/lib/s3'
+import { drawQuestions, type Question, type AttemptQuestion } from '@/lib/questions'
 import { NextResponse } from 'next/server'
 
-type QRow = { id: string; content: string; doubts: string[] | null }
-
-function pick1(pool: QRow[]): QRow {
-  return pool[Math.floor(Math.random() * pool.length)]
+type QuestionRow = {
+  id: string
+  bank: string
+  position_group: string
+  sort_order: number
+  content: string
+  avatar_url: string | null
+  duration_sec: number
 }
 
-function pick2unique(pool: QRow[]): [QRow, QRow] {
-  const shuffled = [...pool].sort(() => Math.random() - 0.5)
-  return [shuffled[0], shuffled[1]]
-}
+const toQuestion = (r: QuestionRow): Question => ({
+  id: r.id,
+  bank: r.bank,
+  positionGroup: r.position_group,
+  sortOrder: r.sort_order,
+  content: r.content,
+  avatarUrl: r.avatar_url,
+  durationSec: r.duration_sec,
+})
 
-function shuffle<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}
-
-// Map legacy role keys to new question bank keys
-const ROLE_MAP: Record<string, string> = {
-  java: 'tech',
-  marketing: 'management',
+/** Swap the stored S3 URL for a short-lived signed playback URL. */
+async function signAvatar(url: string | null): Promise<string | null> {
+  if (!url) return null
+  const key = url.split('.amazonaws.com/')[1]
+  return key ? getS3SignedUrl(key, 3600) : url
 }
 
 export async function POST(req: Request) {
-  const { attemptId, role: rawRole } = await req.json()
-  if (!attemptId || !rawRole) {
-    return NextResponse.json({ error: 'missing attemptId or role' }, { status: 400 })
-  }
-  const role = ROLE_MAP[rawRole] ?? rawRole
+  const email = await currentEmail()
+  if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const supabase = await createClient()
-
-  // Idempotency: if rows already exist, return them
-  const { data: existing } = await supabase
-    .from('attempt_questions')
-    .select('station_id, position, question_id, questions(content, doubts)')
-    .eq('attempt_id', attemptId)
-    .order('position')
-
-  if (existing && existing.length > 0) {
-    return NextResponse.json({ stations: existing.map(r => ({
-      stationId: r.station_id,
-      position: r.position,
-      questionId: r.question_id,
-      content: r.question_id ? (r.questions as any)?.content ?? null : null,
-      doubts: r.question_id ? (r.questions as any)?.doubts ?? null : null,
-    })) })
+  const { attemptId } = await req.json()
+  if (!attemptId) {
+    return NextResponse.json({ error: 'Missing attemptId' }, { status: 400 })
   }
 
-  // Fetch all question pools in parallel
-  const [microRes, doubtRes, challengeRes, mentoringRes, lessonRes, integrityRes] =
-    await Promise.all([
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'micro-teaching').eq('role', role),
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'doubt-resolution').eq('role', role),
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'classroom-challenge').eq('role', 'shared'),
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'mentoring').eq('role', 'shared'),
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'lesson-design').eq('role', role),
-      supabase.from('questions').select('id, content, doubts').eq('station_id', 'integrity').eq('role', 'shared'),
-    ])
-
-  const micro = microRes.data as QRow[]
-  const doubt = doubtRes.data as QRow[]
-  const challenge = challengeRes.data as QRow[]
-  const mentoring = mentoringRes.data as QRow[]
-  const lesson = lessonRes.data as QRow[]
-  const integrity = integrityRes.data as QRow[]
-
-  if (!micro?.length || !doubt?.length || !challenge?.length || !mentoring?.length || !lesson?.length || !integrity?.length) {
-    return NextResponse.json({ error: 'question banks empty — run seed migration' }, { status: 500 })
+  // Ownership first. Everything below reads by attemptId alone, so this check
+  // is what keeps one lead out of another's questions.
+  const attempt = await ownedAttempt(attemptId, email)
+  if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 })
+  if (attempt.status === 'submitted') {
+    return NextResponse.json({ error: 'Attempt already submitted' }, { status: 409 })
   }
 
-  const pickedMicro = pick1(micro)
-  const [doubt1, doubt2] = pick2unique(doubt)
-  const pickedChallenge = pick1(challenge)
-  const pickedMentoring = pick1(mentoring)
-  const pickedLesson = pick1(lesson)
-  const pickedIntegrity = pick1(integrity)
+  // Idempotent: re-entering a started attempt returns the same frozen order.
+  const existing = await sql`
+    select aq.position, aq.question_id, q.content, q.avatar_url, q.duration_sec
+    from attempt_questions aq
+    join questions q on q.id = aq.question_id
+    where aq.attempt_id = ${attemptId}
+    order by aq.position asc
+  ` as {
+    position: number; question_id: string; content: string
+    avatar_url: string | null; duration_sec: number
+  }[]
 
-  // 7 shuffleable middle stations
-  const middle = shuffle([
-    { stationId: 'micro-teaching', question: pickedMicro },
-    { stationId: 'doubt-1', question: doubt1 },
-    { stationId: 'doubt-2', question: doubt2 },
-    { stationId: 'classroom-challenge', question: pickedChallenge },
-    { stationId: 'mentoring', question: pickedMentoring },
-    { stationId: 'lesson-design', question: pickedLesson },
-    { stationId: 'integrity', question: pickedIntegrity },
-  ])
+  if (existing.length > 0) {
+    const questions: AttemptQuestion[] = await Promise.all(
+      existing.map(async row => ({
+        questionId: row.question_id,
+        position: row.position,
+        content: row.content,
+        avatarUrl: await signAvatar(row.avatar_url),
+        durationSec: row.duration_sec,
+      })),
+    )
+    return NextResponse.json({ questions })
+  }
 
-  const fullOrder = [
-    { stationId: 'intro', question: null, position: 1 },
-    ...middle.map((s, i) => ({ ...s, position: i + 2 })),
-    { stationId: 'reflect', question: null, position: 9 },
-  ]
+  // First entry: draw one question per position_group from the assigned bank.
+  const bankRows = await sql`
+    select bank from question_sets where id = ${attempt.set_id} limit 1
+  ` as { bank: string }[]
+  const bank = bankRows[0]?.bank ?? 'behavioral'
 
-  // Insert into attempt_questions
-  await supabase.from('attempt_questions').insert(
-    fullOrder.map(s => ({
-      attempt_id: attemptId,
-      station_id: s.stationId,
-      question_id: s.question?.id ?? null,
-      position: s.position,
-    }))
+  const pool = await sql`
+    select id, bank, position_group, sort_order, content, avatar_url, duration_sec
+    from questions
+    where bank = ${bank} and active
+  ` as QuestionRow[]
+
+  if (pool.length === 0) {
+    return NextResponse.json(
+      { error: `Question bank "${bank}" is empty. Load the questions before sending links.` },
+      { status: 500 },
+    )
+  }
+
+  const drawn = drawQuestions(pool.map(toQuestion))
+
+  // Insert the frozen order. A conflict means a concurrent request already
+  // drew this attempt's questions, so fall through and read theirs.
+  try {
+    for (let i = 0; i < drawn.length; i++) {
+      await sql`
+        insert into attempt_questions (attempt_id, question_id, position)
+        values (${attemptId}, ${drawn[i].id}, ${i + 1})
+        on conflict do nothing
+      `
+    }
+  } catch (err) {
+    console.error('[begin] insert failed:', err)
+    return NextResponse.json({ error: 'Could not start the attempt' }, { status: 500 })
+  }
+
+  // Read back what actually landed, so the client can never be shown an order
+  // that was not persisted. The faculty version skipped this and drifted.
+  const persisted = await sql`
+    select aq.position, aq.question_id, q.content, q.avatar_url, q.duration_sec
+    from attempt_questions aq
+    join questions q on q.id = aq.question_id
+    where aq.attempt_id = ${attemptId}
+    order by aq.position asc
+  ` as {
+    position: number; question_id: string; content: string
+    avatar_url: string | null; duration_sec: number
+  }[]
+
+  if (persisted.length === 0) {
+    return NextResponse.json({ error: 'Could not start the attempt' }, { status: 500 })
+  }
+
+  const questions: AttemptQuestion[] = await Promise.all(
+    persisted.map(async row => ({
+      questionId: row.question_id,
+      position: row.position,
+      content: row.content,
+      avatarUrl: await signAvatar(row.avatar_url),
+      durationSec: row.duration_sec,
+    })),
   )
 
-  return NextResponse.json({
-    stations: fullOrder.map(s => ({
-      stationId: s.stationId,
-      position: s.position,
-      questionId: s.question?.id ?? null,
-      content: s.question?.content ?? null,
-      doubts: s.question?.doubts ?? null,
-    }))
-  })
+  return NextResponse.json({ questions })
 }
