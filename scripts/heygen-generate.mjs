@@ -18,6 +18,11 @@
 //
 // Written in Node rather than Python so it reuses the dependencies already in
 // package.json instead of needing psycopg and boto3.
+//
+// Uses the HeyGen v3 API with the Avatar IV engine. v2 is deprecated (sunsets
+// 2026-10-31) and, more importantly, gave a static talking photo: v3 exposes
+// `expressiveness` (which defaults to low, hence the lifeless first cut) and
+// `motion_prompt` for body movement and hand gestures.
 
 import { readFileSync } from 'node:fs'
 import { neon } from '@neondatabase/serverless'
@@ -54,6 +59,15 @@ const CHARACTER_TYPE = (process.env.HEYGEN_CHARACTER_TYPE || env.HEYGEN_CHARACTE
 // it the same voice reads the script in a Western accent.
 const LOCALE = (process.env.HEYGEN_LOCALE || env.HEYGEN_LOCALE || '').trim()
 
+// Avatar IV motion controls. expressiveness defaults to 'low' at the API,
+// which is what made the avatar look like a still photo with a moving mouth.
+const EXPRESSIVENESS = (process.env.HEYGEN_EXPRESSIVENESS || env.HEYGEN_EXPRESSIVENESS || 'high').trim()
+const MOTION_PROMPT = (process.env.HEYGEN_MOTION_PROMPT || env.HEYGEN_MOTION_PROMPT ||
+  'Speaking warmly and directly to the camera as a friendly college counsellor. ' +
+  'Natural hand gestures while explaining, relaxed shoulders, occasional small ' +
+  'head movements and nods, engaged and encouraging expression.').trim()
+const RESOLUTION = (process.env.HEYGEN_RESOLUTION || env.HEYGEN_RESOLUTION || '1080p').trim()
+
 const DATABASE_URL = need('DATABASE_URL')
 const AWS_REGION = need('AWS_REGION')
 const S3_BUCKET = need('S3_BUCKET_NAME')
@@ -77,50 +91,49 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 // ── HeyGen ───────────────────────────────────────────────────────────────────
 
 /**
- * A generated-photo avatar is a "talking photo" and takes talking_photo_id.
- * A studio avatar takes avatar_id with an avatar_style. Sending the wrong
- * shape is a 400, so the type is explicit rather than guessed.
+ * v3 create. Avatar IV animates a photo avatar by look id, so the talking-photo
+ * distinction that v2 needed no longer applies.
  */
-function characterBlock() {
-  return CHARACTER_TYPE === 'talking_photo'
-    ? { type: 'talking_photo', talking_photo_id: CHARACTER_ID }
-    : { type: 'avatar', avatar_id: CHARACTER_ID, avatar_style: 'normal' }
-}
-
 async function createVideo(text) {
-  const res = await fetch(`${HEYGEN}/v2/video/generate`, {
+  const res = await fetch(`${HEYGEN}/v3/videos`, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
-      video_inputs: [{
-        character: characterBlock(),
-        voice: {
-          type: 'text',
-          input_text: text,
-          voice_id: VOICE_ID,
-          ...(LOCALE ? { locale: LOCALE } : {}),
-        },
-      }],
-      dimension: { width: 1280, height: 720 },
+      type: 'avatar',
+      avatar_id: CHARACTER_ID,
+      script: text,
+      voice_id: VOICE_ID,
+      resolution: RESOLUTION,
+      engine: { type: 'avatar_iv' },
+      expressiveness: EXPRESSIVENESS,
+      motion_prompt: MOTION_PROMPT,
+      ...(LOCALE ? { voice_settings: { locale: LOCALE } } : {}),
     }),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok || body.error) {
-    throw new Error(`generate failed (${res.status}): ${JSON.stringify(body.error ?? body).slice(0, 300)}`)
+    throw new Error(`generate failed (${res.status}): ${JSON.stringify(body.error ?? body).slice(0, 400)}`)
   }
-  const id = body?.data?.video_id
-  if (!id) throw new Error(`no video_id in response: ${JSON.stringify(body).slice(0, 200)}`)
+  const id = body?.data?.video_id ?? body?.video_id
+  if (!id) throw new Error(`no video_id in response: ${JSON.stringify(body).slice(0, 250)}`)
   return id
 }
 
 async function waitForVideo(videoId) {
   const deadline = Date.now() + POLL_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const res = await fetch(`${HEYGEN}/v1/video_status.get?video_id=${videoId}`, { headers: HEADERS })
+    const res = await fetch(`${HEYGEN}/v3/videos/${videoId}`, { headers: HEADERS })
     const body = await res.json().catch(() => ({}))
-    const d = body?.data ?? {}
-    if (d.status === 'completed') return d.video_url
-    if (d.status === 'failed') throw new Error(`render failed: ${JSON.stringify(d.error ?? d).slice(0, 300)}`)
+    const d = body?.data ?? body ?? {}
+    const status = d.status
+    if (status === 'completed' || status === 'success') {
+      const url = d.video_url ?? d.url ?? d.output?.video_url
+      if (!url) throw new Error(`completed but no url: ${JSON.stringify(d).slice(0, 250)}`)
+      return url
+    }
+    if (status === 'failed' || status === 'error') {
+      throw new Error(`render failed: ${JSON.stringify(d.error ?? d).slice(0, 300)}`)
+    }
     await sleep(POLL_INTERVAL_MS)
   }
   throw new Error('render timed out after 15 minutes')
@@ -159,7 +172,8 @@ try {
   if (queue.length === 0) {
     console.log('Nothing to do. Every active question already has a video.')
   } else {
-    console.log(`character: ${CHARACTER_TYPE} ${CHARACTER_ID}`)
+    console.log(`engine:    avatar_iv  expressiveness=${EXPRESSIVENESS}  ${RESOLUTION}`)
+    console.log(`avatar:    ${CHARACTER_ID}`)
     console.log(`voice:     ${VOICE_ID}${LOCALE ? `  locale=${LOCALE}` : '  (no locale set)'}\n`)
     console.log(`${queue.length} to render:\n`)
     for (const q of queue) {

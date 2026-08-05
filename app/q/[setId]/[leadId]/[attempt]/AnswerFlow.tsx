@@ -73,6 +73,12 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // locked until the lead has actually heard the question.
   const [avatarDone, setAvatarDone] = useState<Record<string, boolean>>({})
 
+  // Call-view state. selfMain follows who is speaking: the counsellor holds the
+  // main tile while the clip plays, then the lead takes it to answer. Tapping
+  // either tile overrides it.
+  const [selfMain, setSelfMain] = useState(false)
+  const [captionOpen, setCaptionOpen] = useState(true)
+
   const [globalElapsed, setGlobalElapsed] = useState(0)
   const globalElapsedRef = useRef(0)
   const globalTickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -310,6 +316,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       if (tickRef.current) clearInterval(tickRef.current)
       setRecording(false)
       setElapsed(0)
+      setSelfMain(false)      // next counsellor clip takes the main tile
+      setCaptionOpen(true)
       setIdx(i => i + 1)
       return
     }
@@ -561,9 +569,11 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const last = idx === questions.length - 1
   const pct = Math.round(((idx + 1) / questions.length) * 100)
   const heard = !!avatarDone[questionId] || !question.avatarUrl
+  // While recording the lead should always see themselves large.
+  const avatarIsMain = !selfMain && !recording
 
   return (
-    <div className={styles.stationWrap}>
+    <div className={styles.callStage}>
       {overlayMsg && (
         <div className={styles.overlay}>
           <div className={styles.ovCard}>
@@ -573,152 +583,173 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         </div>
       )}
 
-      <header className={styles.topNav}>
-        <div className={styles.topLeft}>
-          <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
-        </div>
-        <span className={styles.topCenter}>Sunstone Admissions</span>
-        <div className={styles.topRight}>
-          <div className={styles.timerPill}>
-            <span className={styles.timerIcon}>⏱</span>
-            {fmt(globalElapsed)}
-          </div>
-        </div>
-      </header>
+      {/*
+        Two tiles that swap roles rather than remount. Swapping the wrapper
+        class keeps both <video> elements mounted, so the avatar clip is never
+        restarted by React tearing it down and rebuilding it.
+      */}
 
-      <main className={styles.twoPaneMain}>
-        {/* LEFT: the counsellor avatar asking the question */}
-        <div className={styles.leftPane}>
-          <div className={styles.avatarCard}>
-            <div className={styles.tileHeader}>
-              <span className={styles.tileLabel}>Counsellor</span>
-              {question.avatarUrl && (
-                <button className={styles.deleteBtn} onClick={replayAvatar}>↻ Replay</button>
-              )}
-            </div>
-            <div className={styles.avatarVideoWrap}>
-              {question.avatarUrl ? (
-                <video
-                  ref={avatarRef}
-                  key={questionId}
-                  src={question.avatarUrl}
-                  className={styles.avatarVideo}
-                  autoPlay
-                  playsInline
-                  onEnded={() => setAvatarDone(prev => ({ ...prev, [questionId]: true }))}
-                />
-              ) : (
-                <div className={styles.avatarFallback}>
-                  <div className={styles.avatarCircle}>S</div>
-                  <div className={styles.avatarName}>Question is below</div>
-                </div>
-              )}
-            </div>
+      {/* Counsellor tile */}
+      <div
+        className={avatarIsMain ? styles.callMain : styles.callPip}
+        onClick={avatarIsMain ? undefined : () => setSelfMain(false)}
+        role={avatarIsMain ? undefined : 'button'}
+        aria-label={avatarIsMain ? undefined : 'Show the counsellor'}
+      >
+        {question.avatarUrl ? (
+          <video
+            ref={avatarRef}
+            key={questionId}
+            src={question.avatarUrl}
+            autoPlay
+            playsInline
+            onEnded={() => {
+              setAvatarDone(prev => ({ ...prev, [questionId]: true }))
+              setSelfMain(true)   // hand the floor over, like a call
+            }}
+          />
+        ) : (
+          <div className={styles.callCamOff}>
+            <div className={styles.avatarCircle}>S</div>
+            <span>Read the question below</span>
           </div>
+        )}
+        {!avatarIsMain && <span className={styles.callPipLabel}>Counsellor</span>}
+        {!avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
+      </div>
 
-          <div className={styles.questionBlock}>
-            <div className={styles.questionLabel}>Question {idx + 1}</div>
-            <p className={styles.questionText}>{question.content}</p>
+      {/* Lead tile */}
+      <div
+        className={`${avatarIsMain ? styles.callPip : styles.callMain} ${styles.callSelfMirror}`}
+        onClick={avatarIsMain ? () => setSelfMain(true) : undefined}
+        role={avatarIsMain ? 'button' : undefined}
+        aria-label={avatarIsMain ? 'Show yourself' : undefined}
+      >
+        <video ref={videoRef} autoPlay muted playsInline />
+        {!stream && (
+          <div className={styles.callCamOff}>
+            <span style={{ fontSize: 32 }}>📷</span>
+            <span>Camera is off</span>
+            {!camError && (
+              <button className={styles.callBtnNext} onClick={enableCamera}>
+                Turn on camera
+              </button>
+            )}
+            {camError && <span style={{ color: '#fca5a5' }}>{camError}</span>}
+          </div>
+        )}
+        {avatarIsMain && <span className={styles.callPipLabel}>You</span>}
+        {avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
+      </div>
+
+      {/* Top bar */}
+      <div className={styles.callTop}>
+        <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.callTopLogo} />
+        <div className={styles.callTopMeta}>
+          <span className={styles.callProgress}>{idx + 1} / {questions.length}</span>
+          <span className={styles.callTimer}>{fmt(globalElapsed)}</span>
+        </div>
+      </div>
+
+      {recording && (
+        <div className={styles.callRecPill}>
+          <span className={styles.callRecDot} />
+          REC {fmt(elapsed)} / {fmt(question.durationSec)}
+        </div>
+      )}
+
+      {/* Question caption */}
+      {captionOpen ? (
+        <div className={styles.callCaption}>
+          <button className={styles.callCaptionToggle} onClick={() => setCaptionOpen(false)}>
+            Hide question
+          </button>
+          <div className={styles.callCaptionInner}>
+            <div className={styles.callCaptionLabel}>Question {idx + 1}</div>
+            <p className={styles.callCaptionText}>{question.content}</p>
           </div>
         </div>
-
-        {/* RIGHT: the lead recording their answer */}
-        <div className={styles.rightPane}>
-          <div className={styles.tileHeader}>
-            <span className={styles.tileLabel}>You</span>
-            {rec && !recording && (
-              <button className={styles.deleteBtn} onClick={redo}>🗑 Delete</button>
-            )}
-          </div>
-          <div className={`${styles.vidWrap} ${recording ? styles.vidWrapRecording : ''}`}>
-            <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
-            {!stream && (
-              <div className={styles.vidOff}>
-                <span style={{ fontSize: 40 }}>📷</span>
-                <span>Camera not enabled</span>
-              </div>
-            )}
-            {stream && !recording && !rec && (
-              <div className={styles.startOverlay}>
-                <button
-                  className={styles.startRecBtn}
-                  onClick={startRec}
-                  disabled={!heard}
-                  title={heard ? '' : 'Listen to the question first'}
-                >
-                  ⏺
-                </button>
-                <span className={styles.startRecLabel}>
-                  {heard ? 'Click to start recording' : 'Listen to the question first…'}
-                </span>
-              </div>
-            )}
-            {recording && (
-              <>
-                <div className={styles.recBadge}>
-                  <span className={styles.recDot} />
-                  RECORDING
-                </div>
-                <div className={styles.elapsedBadge}>{fmt(elapsed)} / {fmt(question.durationSec)}</div>
-                <div className={styles.liveMicBadge}>
-                  🎤
-                  {[8, 20, 38, 58, 78].map((threshold, i) => (
-                    <div
-                      key={i}
-                      className={`${styles.liveMicBar} ${micLevel >= threshold ? styles.liveMicBarOn : ''}`}
-                      style={{ height: `${6 + i * 3}px` }}
-                    />
-                  ))}
-                </div>
-                <div className={styles.floatingControls}>
-                  <button className={styles.floatStopBtn} onClick={stopRec}>⏹</button>
-                </div>
-              </>
-            )}
-            {rec && !recording && (
-              <div className={styles.recDoneBadge}>
-                <div className={styles.recDoneCheck}>✓</div>
-                <span className={styles.recDoneLabel}>Recorded · {fmt(rec.durationSec)}</span>
-              </div>
-            )}
-          </div>
-          {uploadStatus === 'uploading' && (
-            <div className={styles.uploadProgress}>
-              <div className={styles.uploadProgressBar} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
-              <span className={styles.uploadNote}>Uploading {rec?.uploadProgress ?? 0}%…</span>
-            </div>
-          )}
-          {uploadStatus === 'error' && (
-            <div className={styles.uploadError}>Upload failed. Delete and record again.</div>
-          )}
-          {uploadStatus === 'done' && !recording && (
-            <div className={styles.savedNote}>✓ Answer saved · {fmt(rec.durationSec)}</div>
-          )}
-          {!stream && !camError && (
-            <button className={styles.enableCamBtn} onClick={enableCamera}>
-              Enable camera &amp; microphone
-            </button>
-          )}
-          {camError && <div className={styles.camErr}>{camError}</div>}
-        </div>
-      </main>
-
-      <footer className={styles.bottomBar}>
-        <div className={styles.progressSection}>
-          <div className={styles.progressLabel}>
-            <span className={styles.stepLabel}>Question {idx + 1} of {questions.length}</span>
-            <span className={styles.pctLabel}>{pct}% complete</span>
-          </div>
-          <div className={styles.pbar}>
-            <div className={styles.pfill} style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <div className={styles.bottomActions}>
-          <button className={styles.nextBtn} onClick={next} disabled={!answered}>
-            {last ? 'Finish & submit' : 'Next question'} →
+      ) : (
+        <div className={styles.callCaption}>
+          <button className={styles.callCaptionToggle} onClick={() => setCaptionOpen(true)}>
+            Show question
           </button>
         </div>
-      </footer>
+      )}
+
+      {/* Mic level while recording */}
+      {recording && (
+        <div className={styles.callMic}>
+          {[8, 20, 38, 58, 78].map((threshold, i) => (
+            <div
+              key={i}
+              className={`${styles.callMicBar} ${micLevel >= threshold ? styles.callMicBarOn : ''}`}
+              style={{ height: `${7 + i * 3}px` }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Upload state */}
+      {uploadStatus === 'uploading' && (
+        <div className={styles.callUpload}>
+          <div className={styles.callUploadTrack}>
+            <div className={styles.callUploadFill} style={{ width: `${rec?.uploadProgress ?? 0}%` }} />
+          </div>
+          <div className={styles.callUploadNote}>Saving your answer… {rec?.uploadProgress ?? 0}%</div>
+        </div>
+      )}
+      {uploadStatus === 'error' && (
+        <div className={styles.callUpload}>
+          <div className={styles.callUploadError}>Could not save. Retake your answer.</div>
+        </div>
+      )}
+
+      {/* Hint line */}
+      {!recording && !rec && stream && (
+        <div className={styles.callHint}>
+          {heard ? 'Tap the red button when you are ready to answer' : 'Listen to the question first…'}
+        </div>
+      )}
+      {rec && uploadStatus === 'done' && (
+        <div className={styles.callHint}>Answer saved. Retake it, or continue.</div>
+      )}
+
+      {/* Controls */}
+      <div className={styles.callControls}>
+        {question.avatarUrl && !recording && (
+          <button className={styles.callBtnGhost} onClick={replayAvatar} aria-label="Replay the question">
+            ↻
+          </button>
+        )}
+
+        {!recording && !rec && (
+          <button
+            className={styles.callBtnRec}
+            onClick={startRec}
+            disabled={!stream || !heard}
+            aria-label="Start recording"
+          >
+            <span className={styles.callBtnRecInner} />
+          </button>
+        )}
+
+        {recording && (
+          <button className={styles.callBtnStop} onClick={stopRec} aria-label="Stop recording">
+            <span className={styles.callBtnStopInner} />
+          </button>
+        )}
+
+        {rec && !recording && (
+          <button className={styles.callBtnGhost} onClick={redo} aria-label="Retake your answer">
+            🗑
+          </button>
+        )}
+
+        <button className={styles.callBtnNext} onClick={next} disabled={!answered}>
+          {last ? 'Finish' : 'Next'} →
+        </button>
+      </div>
     </div>
   )
 }

@@ -1981,3 +1981,425 @@
   .topNav { height: 44px; }
   .twoPaneMain { padding-top: 44px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CALL VIEW  (student / lead question screen)
+   Modelled on a WhatsApp video call: one full-bleed main tile, the other
+   party in a small tappable corner tile, controls floating over the video.
+   Whoever is speaking is the main tile — the avatar while it asks, the lead
+   while they answer — and either tile can be tapped to swap.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.callStage {
+  position: fixed;
+  inset: 0;
+  background: #05070d;
+  overflow: hidden;
+  /* iOS: keep content clear of the notch and home indicator */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ── Tiles ─────────────────────────────────────────────────────────────── */
+
+.callMain {
+  position: absolute;
+  inset: 0;
+  background: #05070d;
+  transition: opacity 0.25s ease;
+}
+.callMain video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.callPip {
+  position: absolute;
+  top: calc(72px + env(safe-area-inset-top));
+  right: 14px;
+  width: 108px;
+  height: 148px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #11151f;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  z-index: 20;
+  padding: 0;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.callPip:hover { border-color: rgba(255, 255, 255, 0.45); }
+.callPip:active { transform: scale(0.96); }
+.callPip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.callPipLabel {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+/* The lead's own feed is mirrored, as every video call does. */
+.callSelfMirror video { transform: scaleX(-1); }
+
+.callSwapHint {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  pointer-events: none;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+
+.callTop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 25;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
+  pointer-events: none;
+}
+.callTopLogo {
+  height: 18px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+.callTopMeta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.callTimer {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.callProgress {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Live recording indicator, top-left under the logo row. */
+.callRecPill {
+  position: absolute;
+  top: calc(52px + env(safe-area-inset-top));
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(220, 38, 38, 0.92);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 5px 11px;
+  border-radius: 999px;
+  z-index: 25;
+}
+.callRecDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  animation: callPulse 1.2s ease-in-out infinite;
+}
+@keyframes callPulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.25 } }
+
+/* ── Question caption ──────────────────────────────────────────────────── */
+
+.callCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(128px + env(safe-area-inset-bottom));
+  padding: 0 16px;
+  z-index: 22;
+}
+.callCaptionInner {
+  background: rgba(8, 11, 18, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 12px 14px;
+  max-height: 28vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.callCaptionLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f59e0b;
+  margin-bottom: 5px;
+}
+.callCaptionText {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.94);
+  margin: 0;
+}
+.callCaptionToggle {
+  position: absolute;
+  top: -30px;
+  right: 16px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  min-height: 30px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+
+.callControls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 26;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+}
+
+.callBtnRec,
+.callBtnStop {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.callBtnRec { background: #dc2626; }
+.callBtnStop { background: #dc2626; }
+.callBtnRec:active,
+.callBtnStop:active { transform: scale(0.93); }
+.callBtnRec:disabled {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+  cursor: not-allowed;
+}
+.callBtnRecInner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+}
+.callBtnStopInner {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  background: #fff;
+}
+
+/* Secondary round buttons: replay, redo */
+.callBtnGhost {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  backdrop-filter: blur(6px);
+}
+.callBtnGhost:active { transform: scale(0.94); }
+
+/* Primary advance button, styled as the green "answer" pill of a call UI */
+.callBtnNext {
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.callBtnNext:disabled {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: not-allowed;
+}
+
+.callHint {
+  position: absolute;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  z-index: 24;
+  pointer-events: none;
+  padding: 0 24px;
+}
+
+/* Mic level, mirrors a call app's speaking indicator */
+.callMic {
+  position: absolute;
+  bottom: calc(100px + env(safe-area-inset-bottom));
+  right: 18px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  z-index: 24;
+}
+.callMicBar {
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  transition: background 0.1s linear;
+}
+.callMicBarOn { background: #22c55e; }
+
+/* Upload state */
+.callUpload {
+  position: absolute;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  left: 16px;
+  right: 16px;
+  z-index: 24;
+}
+.callUploadTrack {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.callUploadFill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.2s ease;
+}
+.callUploadNote {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 5px;
+  text-align: center;
+}
+.callUploadError {
+  font-size: 12px;
+  color: #fca5a5;
+  text-align: center;
+}
+
+/* Camera not yet granted */
+.callCamOff {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px;
+}
+
+/* ── Larger screens: keep the call metaphor, constrain the width ───────── */
+
+@media (min-width: 901px) {
+  .callPip {
+    width: 168px;
+    height: 226px;
+    top: 84px;
+    right: 24px;
+    border-radius: 16px;
+  }
+  .callCaption {
+    bottom: calc(140px + env(safe-area-inset-bottom));
+    padding: 0 32px;
+  }
+  .callCaptionInner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px 18px;
+  }
+  .callCaptionText { font-size: 16px; }
+  .callBtnRec, .callBtnStop { width: 76px; height: 76px; }
+  .callControls { gap: 18px; }
+  .callTimer { font-size: 13px; }
+}
+
+@media (max-width: 380px) {
+  .callPip { width: 92px; height: 126px; right: 10px; }
+  .callBtnRec, .callBtnStop { width: 62px; height: 62px; }
+  .callBtnGhost { width: 44px; height: 44px; font-size: 15px; }
+  .callBtnNext { min-height: 48px; padding: 0 16px; font-size: 14px; }
+  .callCaptionText { font-size: 13px; }
+  .callControls { gap: 10px; }
+}
+
+/* Landscape phone: caption to the side so the video keeps its height */
+@media (orientation: landscape) and (max-height: 500px) {
+  .callPip { width: 96px; height: 72px; top: 56px; }
+  .callCaption { bottom: auto; top: 56px; left: auto; right: 118px; width: 46%; padding: 0; }
+  .callCaptionInner { max-height: 40vh; }
+  .callControls { padding-bottom: 10px; }
+  .callBtnRec, .callBtnStop { width: 54px; height: 54px; border-width: 3px; }
+}
