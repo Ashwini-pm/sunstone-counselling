@@ -569,8 +569,11 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const last = idx === questions.length - 1
   const pct = Math.round(((idx + 1) / questions.length) * 100)
   const heard = !!avatarDone[questionId] || !question.avatarUrl
+  // A question whose video has not been generated has nothing to watch, so the
+  // lead takes the main tile and the counsellor tile is not rendered at all.
+  const hasAvatar = !!question.avatarUrl
   // While recording the lead should always see themselves large.
-  const avatarIsMain = !selfMain && !recording
+  const avatarIsMain = hasAvatar && !selfMain && !recording
 
   return (
     <div className={styles.callStage}>
@@ -589,18 +592,18 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         restarted by React tearing it down and rebuilding it.
       */}
 
-      {/* Counsellor tile */}
-      <div
-        className={avatarIsMain ? styles.callMain : styles.callPip}
-        onClick={avatarIsMain ? undefined : () => setSelfMain(false)}
-        role={avatarIsMain ? undefined : 'button'}
-        aria-label={avatarIsMain ? undefined : 'Show the counsellor'}
-      >
-        {question.avatarUrl ? (
+      {/* Counsellor tile, only when a clip exists for this question */}
+      {hasAvatar && (
+        <div
+          className={avatarIsMain ? styles.callMain : styles.callPip}
+          onClick={avatarIsMain ? undefined : () => setSelfMain(false)}
+          role={avatarIsMain ? undefined : 'button'}
+          aria-label={avatarIsMain ? undefined : 'Show the counsellor'}
+        >
           <video
             ref={avatarRef}
             key={questionId}
-            src={question.avatarUrl}
+            src={question.avatarUrl!}
             autoPlay
             playsInline
             onEnded={() => {
@@ -608,15 +611,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               setSelfMain(true)   // hand the floor over, like a call
             }}
           />
-        ) : (
-          <div className={styles.callCamOff}>
-            <div className={styles.avatarCircle}>S</div>
-            <span>Read the question below</span>
-          </div>
-        )}
-        {!avatarIsMain && <span className={styles.callPipLabel}>Counsellor</span>}
-        {!avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
-      </div>
+          {!avatarIsMain && <span className={styles.callPipLabel}>Counsellor</span>}
+          {!avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
+        </div>
+      )}
 
       {/* Lead tile */}
       <div
@@ -638,8 +636,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             {camError && <span style={{ color: '#fca5a5' }}>{camError}</span>}
           </div>
         )}
-        {avatarIsMain && <span className={styles.callPipLabel}>You</span>}
-        {avatarIsMain && <span className={styles.callSwapHint}>⇄</span>}
+        {avatarIsMain && hasAvatar && <span className={styles.callPipLabel}>You</span>}
+        {avatarIsMain && hasAvatar && <span className={styles.callSwapHint}>⇄</span>}
       </div>
 
       {/* Top bar */}
@@ -659,11 +657,13 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       )}
 
       {/* Question caption */}
-      {captionOpen ? (
+      {(captionOpen || !hasAvatar) ? (
         <div className={styles.callCaption}>
-          <button className={styles.callCaptionToggle} onClick={() => setCaptionOpen(false)}>
-            Hide question
-          </button>
+          {hasAvatar && (
+            <button className={styles.callCaptionToggle} onClick={() => setCaptionOpen(false)}>
+              Hide question
+            </button>
+          )}
           <div className={styles.callCaptionInner}>
             <div className={styles.callCaptionLabel}>Question {idx + 1}</div>
             <p className={styles.callCaptionText}>{question.content}</p>
@@ -708,7 +708,9 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       {/* Hint line */}
       {!recording && !rec && stream && (
         <div className={styles.callHint}>
-          {heard ? 'Tap the red button when you are ready to answer' : 'Listen to the question first…'}
+          {!hasAvatar
+            ? 'Read the question, then tap the red button to answer'
+            : heard ? 'Tap the red button when you are ready to answer' : 'Listen to the question first…'}
         </div>
       )}
       {rec && uploadStatus === 'done' && (
@@ -717,7 +719,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
       {/* Controls */}
       <div className={styles.callControls}>
-        {question.avatarUrl && !recording && (
+        {hasAvatar && !recording && (
           <button className={styles.callBtnGhost} onClick={replayAvatar} aria-label="Replay the question">
             ↻
           </button>
