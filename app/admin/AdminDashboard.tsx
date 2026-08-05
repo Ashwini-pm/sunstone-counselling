@@ -3,17 +3,12 @@
 import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
-import { createLeadLink, SOURCE_LABELS, type AdminSetRow } from './actions'
+import { createLeadLink } from './actions'
+import { SOURCE_LABELS, SOURCE_TABS } from './labels'
+import type { AdminSetRow } from '@/lib/db/adminAccess'
 import styles from './admin.module.css'
 
-const TABS: { key: string; label: string }[] = [
-  { key: 'all', label: 'All Leads' },
-  { key: 'nsat1', label: 'NSAT 1' },
-  { key: 'nsat2', label: 'NSAT 2' },
-  { key: 'nsat3', label: 'NSAT 3' },
-  { key: 'nsat4', label: 'NSAT 4' },
-  { key: 'csat', label: 'CSAT' },
-]
+const TABS = SOURCE_TABS
 
 function copyText(text: string, onDone?: () => void) {
   if (navigator.clipboard) {

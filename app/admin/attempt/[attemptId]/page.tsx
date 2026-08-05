@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { currentAdmin } from '@/lib/auth'
 import { attemptDetail } from '@/lib/db/adminAccess'
 import { getS3SignedUrl } from '@/lib/s3'
-import { SOURCE_LABELS } from '@/app/admin/actions'
+import { SOURCE_LABELS } from '@/app/admin/labels'
 import AnswerReview, { type AnswerRow } from './AnswerReview'
 
 export default async function AttemptPage({

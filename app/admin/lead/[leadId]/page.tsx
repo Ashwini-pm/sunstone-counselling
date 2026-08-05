@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { currentAdmin } from '@/lib/auth'
 import { leadProfile } from '@/lib/db/adminAccess'
-import { SOURCE_LABELS } from '@/app/admin/actions'
+import { SOURCE_LABELS } from '@/app/admin/labels'
 import styles from './lead.module.css'
 
 function fmt(secs: number) {

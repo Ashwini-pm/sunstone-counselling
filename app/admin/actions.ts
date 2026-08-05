@@ -4,13 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { currentAdmin } from '@/lib/auth'
 import { createLeadAndSet, recentSets, bankStatus, type AdminSetRow } from '@/lib/db/adminAccess'
 
-export const SOURCE_LABELS: Record<string, string> = {
-  nsat1: 'NSAT 1',
-  nsat2: 'NSAT 2',
-  nsat3: 'NSAT 3',
-  nsat4: 'NSAT 4',
-  csat: 'CSAT',
-}
+// NOTE: this file is 'use server'. Every export must be an async function.
+// Types and constants live in ./labels.ts and @/lib/db/adminAccess.
 
 /** Last 10 digits — the canonical join key across the NSAT and CSAT pipelines. */
 function toPhone10(raw: string | null): string | null {
@@ -49,8 +44,6 @@ export async function createLeadLink(formData: FormData) {
     return { error: 'Could not create the link' }
   }
 }
-
-export type { AdminSetRow }
 
 export async function getRecentSets(): Promise<AdminSetRow[]> {
   const admin = await currentAdmin()
