@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import AnswerFlow from './AnswerFlow'
 import styles from './flow.module.css'
@@ -37,25 +37,25 @@ function GateSplit({ right }: { right: React.ReactNode }) {
 
         <div className={styles.gateSplitHero}>
           <h1 className={styles.gateSplitHeadline}>
-            Aapki baari.<br />
-            <span className={styles.gateSplitAccent}>Bas kuch sawaal.</span>
+            Your turn.<br />
+            <span className={styles.gateSplitAccent}>Just a few questions.</span>
           </h1>
           <p className={styles.gateSplitBody}>
-            Ek chhoti si video conversation. Hamari counsellor kuch sawaal poochhengi aur aap apne
-            jawab record karenge. Koi sahi ya galat jawab nahi hai.
+            A short video conversation. Our counsellor asks a few questions, and you record your
+            answers. There are no right or wrong answers here.
           </p>
           <div className={styles.gateSplitFeatures}>
             <div className={styles.gateSplitFeature}>
               <span className={styles.gateSplitFeatureIcon}>🎥</span>
-              Har sawaal ka ek chhota video jawab
+              A short video answer to each question
             </div>
             <div className={styles.gateSplitFeature}>
               <span className={styles.gateSplitFeatureIcon}>⏱</span>
-              Lagbhag 10 minute
+              About 6 minutes
             </div>
             <div className={styles.gateSplitFeature}>
               <span className={styles.gateSplitFeatureIcon}>💬</span>
-              Hindi, English ya dono — jaise comfortable ho
+              Answer however you are comfortable
             </div>
           </div>
         </div>
@@ -76,16 +76,18 @@ function GateSplit({ right }: { right: React.ReactNode }) {
 export default function LeadGate(props: Props) {
   const { data: session, status } = useSession()
   const [attemptId, setAttemptId] = useState<string | null>(props.existingAttemptId)
-  const [resolving, setResolving] = useState(false)
   const [authError, setAuthError] = useState('')
+  // A ref, not state: setting state synchronously inside an effect triggers
+  // cascading renders and is a lint error under the React compiler rules.
+  const resolvingRef = useRef(false)
 
   const sessionEmail = session?.user?.email?.toLowerCase() ?? null
   const emailMatches = sessionEmail === props.leadEmail.toLowerCase()
 
   useEffect(() => {
-    if (status !== 'authenticated' || !emailMatches || attemptId || resolving) return
+    if (status !== 'authenticated' || !emailMatches || attemptId || resolvingRef.current) return
 
-    setResolving(true)
+    resolvingRef.current = true
     fetch('/api/attempt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -100,12 +102,16 @@ export default function LeadGate(props: Props) {
         if (data.error) setAuthError(data.error)
         else setAttemptId(data.attempt.id)
       })
-      .catch(() => setAuthError('Kuch galat ho gaya. Page refresh karein.'))
-      .finally(() => setResolving(false))
+      .catch(() => setAuthError('Something went wrong. Please refresh the page.'))
+      .finally(() => { resolvingRef.current = false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, emailMatches])
 
-  if (status === 'loading' || resolving) {
+  // Derived, so no state is written during an effect.
+  const awaitingAttempt =
+    status === 'authenticated' && emailMatches && !attemptId && !authError
+
+  if (status === 'loading' || awaitingAttempt) {
     return (
       <div className={styles.gate}>
         <div className={styles.spinner} />
@@ -118,16 +124,16 @@ export default function LeadGate(props: Props) {
       <GateSplit right={
         <div className={styles.gateRightInner}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
-          <h2 className={styles.gateRightTitle}>Galat account</h2>
+          <h2 className={styles.gateRightTitle}>Wrong account</h2>
           <p className={styles.gateRightSub}>
-            Yeh link <strong>{props.leadEmail}</strong> par bheja gaya tha. Aap abhi{' '}
-            <strong>{sessionEmail}</strong> se signed in hain.
+            This link was sent to <strong>{props.leadEmail}</strong>. You are currently signed in as{' '}
+            <strong>{sessionEmail}</strong>.
           </p>
           <button
             className={styles.gateGoogleBtn}
             onClick={() => signOut({ redirect: false }).then(() => signIn('google'))}
           >
-            Sahi account se sign in karein
+            Sign in with the correct account
           </button>
         </div>
       } />
@@ -139,9 +145,9 @@ export default function LeadGate(props: Props) {
       <GateSplit right={
         <div className={styles.gateRightInner}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
-          <h2 className={styles.gateRightTitle}>Namaste, {props.leadName.split(' ')[0]}</h2>
+          <h2 className={styles.gateRightTitle}>Hi {props.leadName.split(' ')[0]}</h2>
           <p className={styles.gateRightSub}>
-            Shuru karne ke liye apne Google account se sign in karein.
+            Sign in with your Google account to get started.
           </p>
 
           {authError && <p className={styles.gateError}>{authError}</p>}
@@ -161,7 +167,7 @@ export default function LeadGate(props: Props) {
           </button>
 
           <p className={styles.gateHintNew}>
-            Wahi account use karein jispar link aaya: <strong>{props.leadEmail}</strong>
+            Use the account this link was sent to: <strong>{props.leadEmail}</strong>
           </p>
 
           <div className={styles.gateTrustRow}>
@@ -178,7 +184,7 @@ export default function LeadGate(props: Props) {
       <GateSplit right={
         <div className={styles.gateRightInner}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
-          <h2 className={styles.gateRightTitle}>Link nahi khul paaya</h2>
+          <h2 className={styles.gateRightTitle}>Could not open this link</h2>
           <p className={styles.gateRightSub}>{authError}</p>
         </div>
       } />

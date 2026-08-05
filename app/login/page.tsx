@@ -27,8 +27,6 @@ export default function LoginPage() {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('denied') === '1'
 
-  const isReviewerFlow = false
-
   async function handleGoogleLogin() {
     setError('')
     setLoading(true)
@@ -52,30 +50,31 @@ export default function LoginPage() {
         <div className={styles.leftBrand}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.leftLogoImg} />
           <span className={styles.leftBrandSub}>Lead Response Center</span>
-          <span className={styles.leftTagline}>Hiring Platform</span>
+          <span className={styles.leftTagline}>Admissions</span>
         </div>
 
         <div className={styles.leftHero}>
           <h1 className={styles.leftHeadline}>
-            Teach it live.<br />
-            <span className={styles.leftHeadlineAccent}>We'll see what you've got.</span>
+            Every lead, answered.<br />
+            <span className={styles.leftHeadlineAccent}>In their own words.</span>
           </h1>
           <p className={styles.leftBody}>
-            A 30-minute multi-station assessment built to surface real teaching ability — not rehearsed answers.
+            NSAT and CSAT leads record video answers to a short set of questions, so your team walks
+            into every call already knowing what matters.
           </p>
 
           <div className={styles.leftFeatures}>
             <div className={styles.leftFeature}>
-              <span className={styles.leftFeatureIcon}>🎯</span>
-              9 stations across teaching, communication &amp; domain
+              <span className={styles.leftFeatureIcon}>🔗</span>
+              A personalised link for every lead
             </div>
             <div className={styles.leftFeature}>
-              <span className={styles.leftFeatureIcon}>✋</span>
-              Live student doubts during micro-teaching
+              <span className={styles.leftFeatureIcon}>🎥</span>
+              Video answers, recorded and stored
             </div>
             <div className={styles.leftFeature}>
-              <span className={styles.leftFeatureIcon}>🔍</span>
-              Reviewed by Sunstone's expert panel
+              <span className={styles.leftFeatureIcon}>📋</span>
+              Review the whole backlog from one dashboard
             </div>
           </div>
         </div>
@@ -96,13 +95,9 @@ export default function LoginPage() {
             <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.rightLogoImg} />
           </div>
 
-          <h2 className={styles.rightTitle}>
-            {isReviewerFlow ? 'Review portal' : 'Welcome back'}
-          </h2>
+          <h2 className={styles.rightTitle}>Welcome back</h2>
           <p className={styles.rightSub}>
-            {isReviewerFlow
-              ? 'Sign in with the Google account this review link was sent to.'
-              : 'Sign in with your Sunstone Google account to access the assessment.'}
+            Sign in with your Sunstone Google account to open the admin panel.
           </p>
 
           {denied && (
@@ -123,11 +118,9 @@ export default function LoginPage() {
             {loading ? 'Redirecting…' : 'Continue with Google'}
           </button>
 
-          {!isReviewerFlow && (
-            <p className={styles.restriction}>
-              Access restricted to <strong>@sunstone.in</strong> accounts only
-            </p>
-          )}
+          <p className={styles.restriction}>
+            Access restricted to <strong>@sunstone.in</strong> accounts only
+          </p>
 
           <div className={styles.trustRow}>
             <span className={styles.trustItem}>🔒 256-bit SSL</span>

@@ -25,6 +25,36 @@ function fmt(s: number) {
   return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0')
 }
 
+function IconCamera() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+    </svg>
+  )
+}
+function IconMic() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  )
+}
+function IconClipboard() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>
+    </svg>
+  )
+}
+function IconCheck() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  )
+}
+
+
 export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [questions, setQuestions] = useState<AttemptQuestion[]>([])
   const [idx, setIdx] = useState(0)
@@ -112,20 +142,13 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   useEffect(() => {
     if (stage !== 'question') return
     globalElapsedRef.current = 0
-    setGlobalElapsed(0)
-    globalTickRef.current = setInterval(() => {
+    const id = setInterval(() => {
       globalElapsedRef.current++
       setGlobalElapsed(globalElapsedRef.current)
     }, 1000)
-    return () => { if (globalTickRef.current) clearInterval(globalTickRef.current) }
+    globalTickRef.current = id
+    return () => clearInterval(id)
   }, [stage])
-
-  // Reset per-question transient state
-  useEffect(() => {
-    setRecording(false)
-    setElapsed(0)
-    if (tickRef.current) clearInterval(tickRef.current)
-  }, [idx])
 
   async function enableCamera() {
     setCamError('')
@@ -137,7 +160,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   }
 
   async function begin() {
-    setOverlayMsg('Aapke sawaal load ho rahe hain…')
+    setOverlayMsg('Loading your questions…')
     try {
       const res = await fetch('/api/attempt/begin', {
         method: 'POST',
@@ -149,7 +172,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       setQuestions(drawn as AttemptQuestion[])
     } catch {
       setOverlayMsg('')
-      alert('Sawaal load nahi ho paaye. Page refresh karke dobara try karein.')
+      alert('Could not load your questions. Please refresh and try again.')
       return
     }
     setOverlayMsg('')
@@ -280,16 +303,20 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     if (recording) stopRec()
 
     if (idx < questions.length - 1) {
+      // Reset transient state here rather than in an effect keyed on idx.
+      if (tickRef.current) clearInterval(tickRef.current)
+      setRecording(false)
+      setElapsed(0)
       setIdx(i => i + 1)
       return
     }
 
     // Wait for every upload to settle before marking the attempt submitted.
-    setOverlayMsg('Aapke jawab save ho rahe hain…')
+    setOverlayMsg('Saving your answers…')
     if (globalTickRef.current) clearInterval(globalTickRef.current)
     await Promise.allSettled([...pendingUploads.current.values()])
 
-    setOverlayMsg('Submit ho raha hai…')
+    setOverlayMsg('Submitting…')
     await fetch('/api/attempt/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -314,25 +341,25 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
           <div className={styles.gateSplitHero}>
             <h1 className={styles.gateSplitHeadline}>
-              Aapki baari.<br />
-              <span className={styles.gateSplitAccent}>Bas kuch sawaal.</span>
+              Your turn.<br />
+              <span className={styles.gateSplitAccent}>Just a few questions.</span>
             </h1>
             <p className={styles.gateSplitBody}>
-              Ek chhoti si video conversation. Hamari counsellor kuch sawaal poochhengi aur aap apne
-              jawab record karenge. Koi sahi ya galat jawab nahi hai.
+              A short video conversation. Our counsellor asks a few questions, and you record your
+              answers. There are no right or wrong answers here.
             </p>
             <div className={styles.gateSplitFeatures}>
               <div className={styles.gateSplitFeature}>
                 <span className={styles.gateSplitFeatureIcon}>🎥</span>
-                Har sawaal ka ek chhota video jawab
+                A short video answer to each question
               </div>
               <div className={styles.gateSplitFeature}>
                 <span className={styles.gateSplitFeatureIcon}>⏱</span>
-                Lagbhag 10 minute
+                About 6 minutes
               </div>
               <div className={styles.gateSplitFeature}>
                 <span className={styles.gateSplitFeatureIcon}>💬</span>
-                Hindi, English ya dono — jaise comfortable ho
+                Answer however you are comfortable
               </div>
             </div>
           </div>
@@ -348,15 +375,15 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         <div className={styles.gateSplitRight}>
           <div className={styles.gateRightInner}>
             <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
-            <h2 className={styles.gateRightTitle}>Namaste, {leadName.split(' ')[0]}</h2>
+            <h2 className={styles.gateRightTitle}>Hi {leadName.split(' ')[0]}</h2>
             <p className={styles.gateRightSub}>
-              Shuru karne se pehle hum aapka camera aur microphone check kar lete hain.
+              Before we start, let us quickly check your camera and microphone.
             </p>
             <button className={styles.gateGoogleBtn} onClick={() => setStage('ready')}>
-              Setup check karein →
+              Check setup →
             </button>
             <div className={styles.gateTrustRow}>
-              <span className={styles.gateTrustItem}>⏱ ~10 minutes</span>
+              <span className={styles.gateTrustItem}>⏱ ~6 minutes</span>
               <span className={styles.gateTrustItem}>🎥 Video recorded</span>
               <span className={styles.gateTrustItem}>🔒 Secure</span>
             </div>
@@ -370,47 +397,26 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   if (stage === 'ready') {
     const STEPS = ['Camera & Microphone', 'Instructions']
 
-    const IconCamera = () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
-      </svg>
-    )
-    const IconMic = () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-      </svg>
-    )
-    const IconClipboard = () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>
-      </svg>
-    )
-    const IconCheck = () => (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-    )
-
     const instRows = [
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-        title: 'Lagbhag 10 minute',
-        desc: 'Har sawaal ka ek chhota video jawab. Time limit screen par dikhegi.',
+        title: 'About 6 minutes',
+        desc: 'A short video answer to each question. Time limit screen par dikhegi.',
       },
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
-        title: 'Pehle sawaal suniye',
-        desc: 'Counsellor ka video chalega. Chaahein to dobara sun sakte hain, phir record karein.',
+        title: 'Listen to the question first',
+        desc: 'The counsellor video plays first. Replay it if you like, then record.',
       },
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>,
-        title: 'Aaram se boliye',
-        desc: 'Hindi, English ya dono mila kar — jaise aap normally baat karte hain.',
+        title: 'Take your time',
+        desc: 'Speak the way you normally would. No need to sound formal.',
       },
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 3 3 8 8 8"/></svg>,
-        title: 'Dobara record kar sakte hain',
-        desc: 'Jawab pasand na aaye to delete karke phir se record karein.',
+        title: 'You can re-record',
+        desc: 'Not happy with an answer? Delete it and record again.',
       },
     ]
 
@@ -438,7 +444,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               <div className={styles.wizardIconWrap}><IconCamera /></div>
               <h2 className={styles.wizardTitle}>Camera &amp; Microphone</h2>
               <p className={styles.wizardDesc}>
-                Apne jawab record karne ke liye access dijiye. Neeche click karke browser prompt accept karein.
+                We need access to record your answers. Click below and accept the browser prompt.
               </p>
               <div className={styles.wizardPreviewWrap}>
                 {stream
@@ -448,7 +454,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
                     </>
                   : <div className={styles.wizardPreviewPlaceholder}>
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                      <span>Camera preview yahan dikhega</span>
+                      <span>Camera preview will appear here</span>
                     </div>
                 }
               </div>
@@ -464,7 +470,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
                       />
                     </div>
                     <div className={`${styles.wizardMicLabel} ${micEverDetected ? styles.wizardMicLabelOk : ''}`}>
-                      {micEverDetected ? 'Detected' : 'Boliye'}
+                      {micEverDetected ? 'Detected' : 'Speak'}
                     </div>
                   </div>
                 </div>
@@ -472,13 +478,13 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
               {camError && <p className={styles.camError}>{camError}</p>}
               {!stream
-                ? <button className={styles.wizardBtn} onClick={enableCamera}>Camera &amp; microphone allow karein</button>
+                ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone</button>
                 : <button
                     className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtnDisabled}
                     onClick={() => { if (micEverDetected) setCheckStep(2) }}
                     disabled={!micEverDetected}
                   >
-                    {micEverDetected ? 'Camera & mic confirmed — Aage badhein' : 'Microphone confirm karne ke liye boliye'}
+                    {micEverDetected ? 'Camera and mic confirmed. Continue' : 'Say something to confirm your mic'}
                   </button>
               }
             </div>
@@ -487,8 +493,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           {checkStep === 2 && (
             <div className={styles.wizardPane}>
               <div className={styles.wizardIconWrap}><IconClipboard /></div>
-              <h2 className={styles.wizardTitle}>Aap taiyaar hain</h2>
-              <p className={styles.wizardDesc}>Neeche instructions padhiye, phir shuru karein.</p>
+              <h2 className={styles.wizardTitle}>You are all set</h2>
+              <p className={styles.wizardDesc}>Have a quick read, then start when you are ready.</p>
               <div className={styles.wizardInstructions}>
                 {instRows.map((row, i) => (
                   <div key={i} className={styles.wizardInstRow}>
@@ -500,7 +506,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
                   </div>
                 ))}
               </div>
-              <button className={styles.wizardBtnSuccess} onClick={begin}>Shuru karein</button>
+              <button className={styles.wizardBtnSuccess} onClick={begin}>Start</button>
             </div>
           )}
         </div>
@@ -523,10 +529,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       <div className={styles.donePage}>
         <div className={styles.doneCard}>
           <div className={styles.doneCheck}>✓</div>
-          <h2>Ho gaya, dhanyavaad</h2>
+          <h2>All done, thank you</h2>
           <p>
-            Shukriya {leadName.split(' ')[0]}. Aapke saare {questions.length} jawab record ho gaye
-            hain. Hamari team inhe dekhkar jaldi hi aapse sampark karegi.
+            Thanks {leadName.split(' ')[0]}. All {questions.length} of your answers are recorded.
+            Our team will go through them and get back to you soon.
           </p>
         </div>
       </div>
@@ -573,7 +579,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             <div className={styles.tileHeader}>
               <span className={styles.tileLabel}>Counsellor</span>
               {question.avatarUrl && (
-                <button className={styles.deleteBtn} onClick={replayAvatar}>↻ Dobara suniye</button>
+                <button className={styles.deleteBtn} onClick={replayAvatar}>↻ Replay</button>
               )}
             </div>
             <div className={styles.avatarVideoWrap}>
@@ -590,14 +596,14 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               ) : (
                 <div className={styles.avatarFallback}>
                   <div className={styles.avatarCircle}>S</div>
-                  <div className={styles.avatarName}>Sawaal neeche padhiye</div>
+                  <div className={styles.avatarName}>Question is below</div>
                 </div>
               )}
             </div>
           </div>
 
           <div className={styles.questionBlock}>
-            <div className={styles.questionLabel}>Sawaal {idx + 1}</div>
+            <div className={styles.questionLabel}>Question {idx + 1}</div>
             <p className={styles.questionText}>{question.content}</p>
           </div>
         </div>
@@ -605,7 +611,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         {/* RIGHT: the lead recording their answer */}
         <div className={styles.rightPane}>
           <div className={styles.tileHeader}>
-            <span className={styles.tileLabel}>Aap</span>
+            <span className={styles.tileLabel}>You</span>
             {rec && !recording && (
               <button className={styles.deleteBtn} onClick={redo}>🗑 Delete</button>
             )}
@@ -615,7 +621,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             {!stream && (
               <div className={styles.vidOff}>
                 <span style={{ fontSize: 40 }}>📷</span>
-                <span>Camera enabled nahi hai</span>
+                <span>Camera not enabled</span>
               </div>
             )}
             {stream && !recording && !rec && (
@@ -624,12 +630,12 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
                   className={styles.startRecBtn}
                   onClick={startRec}
                   disabled={!heard}
-                  title={heard ? '' : 'Pehle sawaal suniye'}
+                  title={heard ? '' : 'Listen to the question first'}
                 >
                   ⏺
                 </button>
                 <span className={styles.startRecLabel}>
-                  {heard ? 'Record karne ke liye click karein' : 'Pehle sawaal suniye…'}
+                  {heard ? 'Click to start recording' : 'Listen to the question first…'}
                 </span>
               </div>
             )}
@@ -669,14 +675,14 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             </div>
           )}
           {uploadStatus === 'error' && (
-            <div className={styles.uploadError}>Upload fail hua — delete karke dobara record karein</div>
+            <div className={styles.uploadError}>Upload failed. Delete and record again.</div>
           )}
           {uploadStatus === 'done' && !recording && (
-            <div className={styles.savedNote}>✓ Jawab save ho gaya · {fmt(rec.durationSec)}</div>
+            <div className={styles.savedNote}>✓ Answer saved · {fmt(rec.durationSec)}</div>
           )}
           {!stream && !camError && (
             <button className={styles.enableCamBtn} onClick={enableCamera}>
-              Camera &amp; microphone enable karein
+              Enable camera &amp; microphone
             </button>
           )}
           {camError && <div className={styles.camErr}>{camError}</div>}
@@ -686,7 +692,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       <footer className={styles.bottomBar}>
         <div className={styles.progressSection}>
           <div className={styles.progressLabel}>
-            <span className={styles.stepLabel}>Sawaal {idx + 1} of {questions.length}</span>
+            <span className={styles.stepLabel}>Question {idx + 1} of {questions.length}</span>
             <span className={styles.pctLabel}>{pct}% complete</span>
           </div>
           <div className={styles.pbar}>
@@ -695,7 +701,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         </div>
         <div className={styles.bottomActions}>
           <button className={styles.nextBtn} onClick={next} disabled={!answered}>
-            {last ? 'Finish & submit' : 'Agla sawaal'} →
+            {last ? 'Finish & submit' : 'Next question'} →
           </button>
         </div>
       </footer>
