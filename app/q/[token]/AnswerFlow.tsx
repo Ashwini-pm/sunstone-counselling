@@ -59,6 +59,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [questions, setQuestions] = useState<AttemptQuestion[]>([])
   // Spoken closing, played after submit. Null until generated.
   const [closingUrl, setClosingUrl] = useState<string | null>(null)
+  const [closingDone, setClosingDone] = useState(false)
   const [idx, setIdx] = useState(0)
   const [stage, setStage] = useState<'welcome' | 'ready' | 'question' | 'done'>('welcome')
   const [recordings, setRecordings] = useState<Record<string, RecordingState>>({})
@@ -94,7 +95,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const camPreviewRef = useRef<HTMLVideoElement>(null)
-  const avatarRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -304,13 +304,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     })
   }
 
-  function replayAvatar() {
-    const v = avatarRef.current
-    if (!v) return
-    v.currentTime = 0
-    v.play().catch(() => {})
-  }
-
   async function next() {
     if (recording) stopRec()
 
@@ -419,7 +412,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
         title: 'Listen to the question first',
-        desc: 'The counsellor video plays first. Replay it if you like, then record.',
+        desc: 'Counsellor pehle question poochenge. Sun lijiye, then record your answer.',
       },
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>,
@@ -538,20 +531,50 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
   // ── DONE ──
   if (stage === 'done') {
+    // Deliberately NOT a video player. No controls, no frame, no media chrome:
+    // the counsellor simply stays on the call and signs off, so the last thing
+    // the lead sees is a person talking to them. When the clip ends the idle
+    // loop takes over, exactly as it does between questions, so the call never
+    // resolves into a frozen frame.
+    if (closingUrl) {
+      return (
+        <div className={styles.callStage}>
+          <div className={styles.callMain}>
+            <video
+              src={closingUrl}
+              autoPlay
+              playsInline
+              style={closingDone && idleUrl ? { display: 'none' } : undefined}
+              onEnded={() => setClosingDone(true)}
+            />
+            {closingDone && idleUrl && (
+              <video src={idleUrl} autoPlay loop muted playsInline />
+            )}
+          </div>
+
+          <div className={styles.callTop}>
+            <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.callTopLogo} />
+          </div>
+
+          <div className={styles.callCaption}>
+            <div className={styles.callCaptionInner}>
+              <div className={styles.callCaptionLabel}>
+                All {questions.length} answers saved
+              </div>
+              <p className={styles.callCaptionText}>
+                Thanks {leadName.split(' ')[0]}. Our team will go through your answers
+                and get back to you soon.
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // No closing clip generated: fall back to the plain card.
     return (
       <div className={styles.donePage}>
         <div className={styles.doneCard}>
-          {closingUrl && (
-            <div className={styles.avatarVideoWrap} style={{ marginBottom: 20 }}>
-              <video
-                src={closingUrl}
-                className={styles.avatarVideo}
-                autoPlay
-                playsInline
-                controls
-              />
-            </div>
-          )}
           <div className={styles.doneCheck}>✓</div>
           <h2>All done, thank you</h2>
           <p>
@@ -569,12 +592,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const rec = recordings[questionId]
   const uploadStatus = rec?.uploadStatus
   const last = idx === questions.length - 1
-  const pct = Math.round(((idx + 1) / questions.length) * 100)
   const heard = !!avatarDone[questionId] || !question.avatarUrl
   // A question whose video has not been generated has nothing to watch, so the
   // lead takes the main tile and the counsellor tile is not rendered at all.
   const hasAvatar = !!question.avatarUrl
-  const avatarIsMain = hasAvatar
   // The clip is finite: once it ends the element holds its final frame, which
   // reads as a dead photo. Prefer a looping idle clip, else a CSS drift.
   const clipEnded = !!avatarDone[questionId]
@@ -601,9 +622,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       {hasAvatar && (
         <div className={`${styles.callMain} ${clipEnded && !idleUrl ? styles.callIdle : ''}`}>
           {/* Hidden rather than unmounted once the idle loop takes over, so
-              replaying does not have to refetch the clip. */}
+              the browser does not discard a clip it has already fetched. */}
           <video
-            ref={avatarRef}
             key={questionId}
             src={question.avatarUrl!}
             autoPlay
@@ -614,17 +634,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           {/* Muted: a repeating voice would be maddening. */}
           {showIdle && <video src={idleUrl!} autoPlay loop muted playsInline />}
 
-          {clipEnded && !recording && (
-            <button
-              className={styles.callReplayOverlay}
-              onClick={() => {
-                setAvatarDone(prev => ({ ...prev, [questionId]: false }))
-                replayAvatar()
-              }}
-            >
-              ↻ Play the question again
-            </button>
-          )}
         </div>
       )}
 
@@ -725,11 +734,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
       {/* Controls */}
       <div className={styles.callControls}>
-        {hasAvatar && !recording && (
-          <button className={styles.callBtnGhost} onClick={replayAvatar} aria-label="Replay the question">
-            ↻
-          </button>
-        )}
 
         {!recording && !rec && (
           <button

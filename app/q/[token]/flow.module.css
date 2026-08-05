@@ -2425,28 +2425,6 @@
   .callIdle video { animation: none; }
 }
 
-.callReplayOverlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(8, 11, 18, 0.72);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 11px 18px;
-  border-radius: 999px;
-  min-height: 44px;
-  cursor: pointer;
-  z-index: 23;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-.callReplayOverlay:active { transform: translate(-50%, -50%) scale(0.96); }
 
 /* The corner tile is fixed now, so it is no longer interactive. */
 .callPip { cursor: default; }

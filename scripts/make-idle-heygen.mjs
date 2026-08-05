@@ -54,7 +54,24 @@ const s3 = new S3Client({
   credentials: { accessKeyId: need('AWS_ACCESS_KEY_ID'), secretAccessKey: need('AWS_SECRET_ACCESS_KEY') },
 })
 
-const SECONDS = 6           // loops, so it does not need to be long
+const SECONDS = Number(env.IDLE_SECONDS ?? 8)
+
+// Tunable without editing code, because judging these needs eyes on the result.
+//
+// expressiveness: 'high' was wrong for an idle clip. With no speech to drive,
+// high energy has nothing to animate except the face, which distorted the
+// mouth. 'medium' gives body movement without facial contortion.
+const EXPRESSIVENESS = env.IDLE_EXPRESSIVENESS ?? 'medium'
+
+// Deliberately says nothing about the mouth or lips. The previous prompt asked
+// for "mouth closed and relaxed", and naming it appears to have invited the
+// model to animate it. Describe only head, gaze and shoulders.
+const MOTION = env.IDLE_MOTION_PROMPT ??
+  'A man sitting calmly in an office, listening. He slowly turns his head to ' +
+  'his left, pauses, returns to centre, then turns slightly to his right. His ' +
+  'eyes follow, glancing left and right naturally. Shoulders relaxed and still. ' +
+  'Occasional slow blink. Calm, patient, friendly expression. Completely quiet ' +
+  'and attentive throughout.'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const work = mkdtempSync(join(tmpdir(), 'idlehg-'))
 
@@ -84,12 +101,10 @@ try {
     audio_url: audioUrl,          // instead of a script: nothing to say
     resolution: '720p',           // it is a background loop; 1080p is waste
     engine: { type: 'avatar_iv' },
-    expressiveness: 'high',
-    motion_prompt:
-      'Listening attentively and warmly, not speaking. Mouth closed and relaxed. ' +
-      'Slow gentle head nods, small natural shifts of the shoulders, occasional ' +
-      'blinks, patient encouraging expression, looking at the camera.',
+    expressiveness: EXPRESSIVENESS,
+    motion_prompt: MOTION,
   }
+  console.log(`expressiveness: ${EXPRESSIVENESS}   ${SECONDS}s`)
 
   const res = await fetch(`${HEYGEN}/v3/videos`, {
     method: 'POST', headers: HEADERS, body: JSON.stringify(body),
