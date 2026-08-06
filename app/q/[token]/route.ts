@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { setByAccessToken } from '@/lib/db/leadAccess'
 import { startLeadSession } from '@/lib/leadSession'
+import { deviceFromUserAgent, logEvent } from '@/lib/events'
 
 /**
  * Passwordless lead entry: GET /q/{access_token}
@@ -37,12 +38,28 @@ export async function GET(
     return NextResponse.redirect(new URL('/answer?e=done', _req.url))
   }
 
-  if (!existing[0]) {
-    await sql`
+  let attemptId = existing[0]?.id
+  if (!attemptId) {
+    const created = await sql`
       insert into attempts (set_id, lead_id, attempt_number)
       values (${set.setId}, ${set.leadId}, 1)
-    `
+      returning id
+    ` as { id: string }[]
+    attemptId = created[0].id
   }
+
+  // Server-side, so it lands even if the lead closes the tab a second later.
+  // Fires on every open including a refresh, so a count of distinct people who
+  // opened their link is count(distinct attempt_id), not count(*).
+  await logEvent({
+    attemptId,
+    leadId: set.leadId,
+    event: 'link_opened',
+    meta: {
+      ...deviceFromUserAgent(_req.headers.get('user-agent')),
+      resumed: !!existing[0],
+    },
+  })
 
   await startLeadSession({ leadId: set.leadId, setId: set.setId })
 
