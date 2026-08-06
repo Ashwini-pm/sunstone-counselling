@@ -31,6 +31,7 @@ var TAB = {
   delivery: 'Campaign Delivery',
   students: 'Students',
   events: 'Analytics Data',
+  master: 'MASTER',
   answers: 'Recordings',
 }
 
@@ -144,9 +145,13 @@ function refreshAll() {
   buildFunnel(ss, fetchPart('funnel').funnel)
   buildCohorts(ss, fetchPart('cohorts').cohorts)
   buildDelivery(ss)
-  buildStudents(ss, fetchPart('leads').leads)
-  buildAnswers(ss, fetchPart('answers').answers)
+  var leads = fetchPart('leads').leads
+  var answers = fetchPart('answers').answers
+
+  buildStudents(ss, leads)
+  buildAnswers(ss, answers)
   buildEvents(ss, fetchPart('events').events)
+  buildMaster(ss, leads, answers)
 
   orderTabs(ss)
 }
@@ -466,6 +471,114 @@ function buildEvents(ss, events) {
   sh.setFrozenRows(1)
 }
 
+/**
+ * One row per student, everything known about them, at the end of the book.
+ *
+ * The other tabs each answer one question. This answers "show me this person":
+ * who they are, the link they were sent, every stage they passed or did not,
+ * and a playable link to each answer they recorded.
+ *
+ * Wide on purpose. It is the tab you filter and sort, not the one you read.
+ */
+function buildMaster(ss, leads, answers) {
+  ss = ss || book()
+  var sh = resetSheet(ss, TAB.master)
+
+  // Answers keyed by attempt, so each student's videos land in Q1..Qn columns.
+  var byAttempt = {}
+  var maxQ = 0
+  for (var i = 0; i < answers.length; i++) {
+    var a = answers[i]
+    if (!a.attempt_id) continue
+    if (!byAttempt[a.attempt_id]) byAttempt[a.attempt_id] = {}
+    var pos = a.position || 0
+    if (pos > 0) {
+      byAttempt[a.attempt_id][pos] = a
+      if (pos > maxQ) maxQ = pos
+    }
+  }
+  if (maxQ === 0) maxQ = 5
+
+  var header = [
+    'Student', 'Phone', 'Email', 'Cohort', 'Lead ID',
+    'Link issued', 'Counselling link',
+    'Opened', 'Device', 'Browser',
+    'Saw intro', 'Started', 'Camera asked', 'Camera allowed', 'Camera blocked',
+    'Mic not heard', 'Entered call',
+    'Answers', 'Furthest Q', 'Stopped at', 'Last seen', 'Time taken', 'Status',
+  ]
+  for (var q = 1; q <= maxQ; q++) header.push('Q' + q)
+
+  var tick = function (v) { return v ? '✓' : '' }
+  var rows = []
+
+  for (var j = 0; j < leads.length; j++) {
+    var d = leads[j]
+    var row = [
+      d.name, d.phone10 || '', d.email || '', labelCohort(d.cohort || d.source),
+      d.external_lead_id || '',
+      istDate(d.link_created),
+      d.access_token
+        ? '=HYPERLINK("' + baseUrl() + '/q/' + d.access_token + '","open")' : '',
+      d.opened_at ? istDate(d.opened_at) : (d.attempt_id ? 'yes' : ''),
+      d.device || '', d.browser || '',
+      tick(d.ev_intro), tick(d.ev_started), tick(d.ev_cam_ask),
+      tick(d.ev_cam_ok), tick(d.ev_cam_denied),
+      tick(d.ev_mic_missing), tick(d.ev_in_call),
+      d.answers, d.furthest_question || '',
+      stageLabel(d.last_stage), istDate(d.last_stage_at),
+      d.total_duration_sec ? mmss(d.total_duration_sec) : '',
+      d.status === 'submitted' ? 'Completed'
+        : d.attempt_id ? 'Dropped off' : 'Never opened',
+    ]
+
+    var mine = byAttempt[d.attempt_id] || {}
+    for (var k = 1; k <= maxQ; k++) {
+      var ans = mine[k]
+      row.push(ans && ans.playUrl
+        ? '=HYPERLINK("' + ans.playUrl + '","▶ ' + (ans.duration_sec || '?') + 's")'
+        : '')
+    }
+    rows.push(row)
+  }
+  if (!rows.length) rows.push(header.map(function () { return '' }))
+
+  sh.getRange(1, 1, 1, header.length).setValues([header])
+  sh.getRange(2, 1, rows.length, header.length).setValues(rows)
+
+  styleHeader(sh, header.length)
+
+  var statusCol = sh.getRange(2, 23, rows.length, 1)
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Completed')
+      .setBackground('#dcfce7').setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Dropped off')
+      .setBackground('#fee2e2').setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Never opened')
+      .setBackground('#f1f5f9').setRanges([statusCol]).build(),
+  ])
+
+  // The tick block reads as a path across the page when it is narrow.
+  sh.getRange(2, 11, rows.length, 7).setHorizontalAlignment('center')
+  sh.getRange(1, 11, rows.length + 1, 7).setFontSize(9)
+  for (var c = 11; c <= 17; c++) sh.setColumnWidth(c, 46)
+
+  sh.setColumnWidth(1, 170)
+  sh.setColumnWidth(3, 210)
+  sh.setColumnWidth(4, 220)
+  sh.setColumnWidth(20, 175)
+  sh.setFrozenRows(1)
+  sh.setFrozenColumns(2)
+  if (rows.length > 1 && !sh.getFilter()) {
+    sh.getRange(1, 1, rows.length + 1, header.length).createFilter()
+  }
+}
+
+/** Base URL of the app, for rebuilding a lead's link. */
+function baseUrl() {
+  return PropertiesService.getScriptProperties().getProperty(PROP_URL) || ''
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function resetSheet(ss, name) {
@@ -560,7 +673,7 @@ function labelCohort(value) {
 function orderTabs(ss) {
   ss = ss || book()
   var order = [TAB.summary, TAB.cohorts, TAB.funnel, TAB.delivery,
-               TAB.students, TAB.answers, TAB.events]
+               TAB.students, TAB.answers, TAB.events, TAB.master]
   for (var i = 0; i < order.length; i++) {
     var sh = ss.getSheetByName(order[i])
     if (sh) { ss.setActiveSheet(sh); ss.moveActiveSheet(i + 1) }

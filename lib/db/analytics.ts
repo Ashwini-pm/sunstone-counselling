@@ -131,6 +131,8 @@ export interface LeadRow {
   source: string | null
   cohort: string | null
   city: string | null
+  external_lead_id: string | null
+  access_token: string | null
   link_created: string | null
   attempt_id: string | null
   status: string | null
@@ -143,6 +145,15 @@ export interface LeadRow {
   furthest_question: number | null
   submitted_at: string | null
   total_duration_sec: number | null
+  // Per-stage flags, so the master sheet can show a tick per column rather
+  // than making the reader infer the path from a single "stopped at" value.
+  ev_intro: boolean
+  ev_started: boolean
+  ev_cam_ask: boolean
+  ev_cam_ok: boolean
+  ev_cam_denied: boolean
+  ev_in_call: boolean
+  ev_mic_missing: boolean
 }
 
 /**
@@ -156,6 +167,8 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
   return await sql`
     select
       l.id as lead_id, l.name, l.email, l.phone10, l.source, l.cohort, l.city,
+      l.external_lead_id,
+      s.access_token,
       s.created_at as link_created,
       a.id as attempt_id, a.status, a.submitted_at, a.total_duration_sec,
       o.at   as opened_at,
@@ -164,7 +177,14 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
       coalesce(r.cnt, 0)::int as answers,
       last_ev.event as last_stage,
       last_ev.at    as last_stage_at,
-      q.furthest::int as furthest_question
+      q.furthest::int as furthest_question,
+      coalesce(ev.intro, false)       as ev_intro,
+      coalesce(ev.started, false)     as ev_started,
+      coalesce(ev.cam_ask, false)     as ev_cam_ask,
+      coalesce(ev.cam_ok, false)      as ev_cam_ok,
+      coalesce(ev.cam_denied, false)  as ev_cam_denied,
+      coalesce(ev.in_call, false)     as ev_in_call,
+      coalesce(ev.mic_missing, false) as ev_mic_missing
     from leads l
     left join lateral (
       select * from question_sets where lead_id = l.id
@@ -190,6 +210,18 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
     left join lateral (
       select count(*) as cnt from recordings where attempt_id = a.id
     ) r on true
+    left join lateral (
+      select
+        bool_or(event = 'intro_viewed')     as intro,
+        bool_or(event = 'intro_accepted')   as started,
+        bool_or(event = 'camera_requested'
+             or event = 'camera_autostart') as cam_ask,
+        bool_or(event = 'camera_granted')   as cam_ok,
+        bool_or(event = 'camera_denied')    as cam_denied,
+        bool_or(event = 'wizard_completed') as in_call,
+        bool_or(event = 'mic_not_detected') as mic_missing
+      from attempt_events where attempt_id = a.id
+    ) ev on true
     order by s.created_at desc nulls last
     limit ${limit}
   ` as LeadRow[]
