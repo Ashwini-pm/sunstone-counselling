@@ -2848,3 +2848,27 @@
   .demoRec { width: 40px; height: 40px; }
   .demoNext { padding: 8px 14px; font-size: 12px; }
 }
+
+/* Shown when the mic meter never registered but the student may continue. */
+.micNote {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+/* Start button pinned to the bottom of the setup screen.
+   The instruction list pushes it below the fold on a phone, and a primary
+   action you have to scroll to find is one people do not find. */
+.wizardStickyBar {
+  position: sticky;
+  bottom: 0;
+  margin: 16px -20px -20px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 22%);
+  z-index: 5;
+}
+.wizardStickyBar .wizardBtnSuccess { width: 100%; }

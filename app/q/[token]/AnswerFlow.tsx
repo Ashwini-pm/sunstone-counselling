@@ -219,6 +219,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [checkStep, setCheckStep] = useState<1 | 2>(1)
   const [micLevel, setMicLevel] = useState(0)
   const [micEverDetected, setMicEverDetected] = useState(false)
+  // The mic check stops blocking after a grace period. See the button below.
+  const [micGraceOver, setMicGraceOver] = useState(false)
   const animFrameRef = useRef<number | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -288,6 +290,37 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // Fires once per page load. A ref guard rather than state, both because
   // StrictMode double-invokes effects in development and because
   // react-hooks/set-state-in-effect has already failed a build in this file.
+  // Ask for the camera as soon as the step is reached.
+  //
+  // The logs said 7 people tapped "Check setup" and only 3 ever reached the
+  // permission prompt: they landed on a screen whose sole action was a button,
+  // and stopped. The browser prompt is a far stronger call to action than
+  // anything we can render, so raise it ourselves. The button stays as the
+  // retry path for anyone who dismisses it.
+  const camAutoTried = useRef(false)
+  useEffect(() => {
+    if (stage !== 'ready' || checkStep !== 1 || stream || camAutoTried.current) return
+    camAutoTried.current = true
+    track('camera_autostart')
+    void enableCamera()
+    // enableCamera is stable for the life of the component and re-running this
+    // on every render would re-prompt, which browsers punish.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, checkStep, stream])
+
+  // Unblock the mic check after a few seconds.
+  //
+  // It used to be a hard gate: Continue stayed disabled until the meter read a
+  // signal, with no skip and no timeout. A quiet room, a held-away phone, a
+  // low-gain mic or a flat stream trapped the student on that screen forever.
+  // A missed reading is not evidence of a broken microphone, and losing the
+  // lead outright is worse than risking one quiet answer.
+  useEffect(() => {
+    if (stage !== 'ready' || checkStep !== 1 || !stream || micEverDetected) return
+    const id = setTimeout(() => setMicGraceOver(true), 6000)
+    return () => clearTimeout(id)
+  }, [stage, checkStep, stream, micEverDetected])
+
   const introLogged = useRef(false)
   useEffect(() => {
     if (introLogged.current) return
@@ -479,8 +512,29 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     })
   }
 
+  /**
+   * Stop, and resolve only once the recorder has actually stopped.
+   *
+   * MediaRecorder.stop() returns immediately; `onstop` fires later, and that is
+   * where the upload promise is registered. Now that Next can be pressed while
+   * still recording, awaiting this is the only thing stopping the last question
+   * from being submitted before its answer has been queued for upload.
+   */
+  function stopRecAndWait(): Promise<void> {
+    return new Promise(resolve => {
+      const r = recorderRef.current
+      if (!r || r.state === 'inactive') { stopRec(); resolve(); return }
+      const previous = r.onstop
+      r.onstop = function (this: MediaRecorder, e: Event) {
+        previous?.call(this, e)
+        resolve()
+      }
+      stopRec()
+    })
+  }
+
   async function next() {
-    if (recording) stopRec()
+    if (recording) await stopRecAndWait()
 
     if (idx < questions.length - 1) {
       // Reset transient state here rather than in an effect keyed on idx.
@@ -670,13 +724,26 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               {camError && <p className={styles.camError}>{camError}</p>}
               {!stream
                 ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone</button>
-                : <button
-                    className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtnDisabled}
-                    onClick={() => { if (micEverDetected) setCheckStep(2) }}
-                    disabled={!micEverDetected}
-                  >
-                    {micEverDetected ? 'Camera and mic confirmed. Continue' : 'Say something to confirm your mic'}
-                  </button>
+                : <>
+                    <button
+                      className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtn}
+                      onClick={() => {
+                        if (!micEverDetected) track('mic_not_detected')
+                        setCheckStep(2)
+                      }}
+                      disabled={!micEverDetected && !micGraceOver}
+                    >
+                      {micEverDetected
+                        ? 'Camera and mic confirmed. Continue'
+                        : micGraceOver ? 'Continue anyway' : 'Say something to confirm your mic'}
+                    </button>
+                    {!micEverDetected && micGraceOver && (
+                      <p className={styles.micNote}>
+                        We could not pick up any sound. You can carry on, but please
+                        speak up when you answer.
+                      </p>
+                    )}
+                  </>
               }
             </div>
           )}
@@ -703,7 +770,11 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
                   </div>
                 ))}
               </div>
-              <button className={styles.wizardBtnSuccess} onClick={begin}>Start</button>
+              {/* Pinned, so it is reachable without scrolling past the
+                  instructions on a phone. */}
+              <div className={styles.wizardStickyBar}>
+                <button className={styles.wizardBtnSuccess} onClick={begin}>Start</button>
+              </div>
             </div>
           )}
         </div>
@@ -830,6 +901,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             onEnded={() => {
               track('question_heard', { questionId, position: idx + 1 })
               setAvatarDone(prev => ({ ...prev, [questionId]: true }))
+              // Start recording the moment the question finishes. Pressing a
+              // record button was an extra step in a conversation that is
+              // meant to feel like a call, and it is one more place to stall.
+              if (stream && !recordings[questionId] && !recording) startRec()
             }}
           />
           {/* Muted: a repeating voice would be maddening. */}
@@ -926,10 +1001,13 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         <div className={styles.callHint}>
           {!hasAvatar
             ? 'Read the question, then tap the red button to answer'
-            : heard ? 'Tap the red button when you are ready to answer' : 'Listen to the question first…'}
+            : heard ? 'Recording starts automatically. Tap Next when you finish.' : 'Listen to the question…'}
         </div>
       )}
-      {rec && uploadStatus === 'done' && (
+      {recording && (
+        <div className={styles.callHint}>Answer away. Tap Next when you are done.</div>
+      )}
+      {rec && !recording && uploadStatus === 'done' && (
         <div className={styles.callHint}>Answer saved. Retake it, or continue.</div>
       )}
 
@@ -959,7 +1037,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           </button>
         )}
 
-        <button className={styles.callBtnNext} onClick={next} disabled={!answered}>
+        {/* Enabled while recording too: Next is now how you finish an answer.
+            next() stops the recorder, and the upload continues in the
+            background while the following question plays. */}
+        <button className={styles.callBtnNext} onClick={next} disabled={!answered && !recording}>
           {last ? 'Finish' : 'Next'} →
         </button>
       </div>

@@ -22,6 +22,7 @@
 
 var PROP_URL = 'ANALYTICS_BASE_URL'
 var PROP_KEY = 'ANALYTICS_API_KEY'
+var PROP_SHEET = 'ANALYTICS_SHEET_ID'
 
 var TAB = {
   summary: 'Summary',
@@ -70,6 +71,7 @@ function setup() {
 
   props.setProperty(PROP_URL, urlAnswer.getResponseText().trim().replace(/\/+$/, ''))
   props.setProperty(PROP_KEY, keyAnswer.getResponseText().trim())
+  props.setProperty(PROP_SHEET, SpreadsheetApp.getActiveSpreadsheet().getId())
 
   installTrigger()
   refreshAll()
@@ -89,6 +91,25 @@ function removeTriggers() {
 }
 
 // ── fetch ────────────────────────────────────────────────────────────────────
+
+/**
+ * The spreadsheet to write to.
+ *
+ * getActiveSpreadsheet() only works when a human has the sheet open. Fired from
+ * the 15 minute trigger it returns null, which is why the scheduled refresh
+ * failed while the menu one worked. The id is recorded on every interactive
+ * run, so the trigger can resolve the same file.
+ */
+function book() {
+  var active = SpreadsheetApp.getActiveSpreadsheet()
+  if (active) {
+    PropertiesService.getScriptProperties().setProperty(PROP_SHEET, active.getId())
+    return active
+  }
+  var id = PropertiesService.getScriptProperties().getProperty(PROP_SHEET)
+  if (id) return SpreadsheetApp.openById(id)
+  throw new Error('No spreadsheet. Open the sheet and run Sunstone > Refresh now once.')
+}
 
 function fetchPart(part) {
   var props = PropertiesService.getScriptProperties()
@@ -115,7 +136,8 @@ function fetchPart(part) {
  * will outgrow that long before the leads tab does.
  */
 function refreshAll() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet()
+  Logger.log('refreshAll starting')
+  var ss = book()
   var stamp = new Date()
 
   buildSummary(ss, fetchPart('summary').summary, stamp)
@@ -132,6 +154,7 @@ function refreshAll() {
 // ── tabs ─────────────────────────────────────────────────────────────────────
 
 function buildSummary(ss, s, stamp) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.summary)
 
   var openRate = pct(s.opened, s.links_sent)
@@ -193,6 +216,7 @@ function buildSummary(ss, s, stamp) {
 }
 
 function buildFunnel(ss, funnel) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.funnel)
 
   var header = ['Stage', 'Leads', '% of those who opened', '% of previous step',
@@ -251,6 +275,7 @@ function buildFunnel(ss, funnel) {
  * anyone who did not complete is exactly where they dropped out.
  */
 function buildStudents(ss, leads) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.students)
 
   var header = ['Student', 'Email', 'Phone', 'Cohort', 'Link issued', 'Opened',
@@ -294,10 +319,15 @@ function buildStudents(ss, leads) {
   sh.setColumnWidth(10, 190)
   sh.setFrozenRows(1)
   sh.setFrozenColumns(1)
-  if (rows.length > 1) sh.getRange(1, 1, rows.length + 1, header.length).createFilter()
+  // Guarded too: one exception here aborts the whole refresh, and a filter
+  // added by hand would not have gone through resetSheet.
+  if (rows.length > 1 && !sh.getFilter()) {
+    sh.getRange(1, 1, rows.length + 1, header.length).createFilter()
+  }
 }
 
 function buildCohorts(ss, cohorts) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.cohorts)
 
   var header = ['Cohort', 'Leads', 'Links issued', 'Opened', 'Started',
@@ -334,6 +364,7 @@ function buildCohorts(ss, cohorts) {
  * moment column B has values, so nothing needs rebuilding later.
  */
 function buildDelivery(ss) {
+  ss = ss || book()
   var sh = ss.getSheetByName(TAB.delivery)
 
   // Never wipe this one on refresh: it holds hand-entered numbers. Build it
@@ -377,6 +408,7 @@ function buildDelivery(ss) {
 }
 
 function buildAnswers(ss, answers) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.answers)
 
   var header = ['Student', 'Email', 'Phone', 'Cohort', 'Q#', 'Question',
@@ -410,6 +442,7 @@ function buildAnswers(ss, answers) {
 }
 
 function buildEvents(ss, events) {
+  ss = ss || book()
   var sh = resetSheet(ss, TAB.events)
 
   var header = ['When (IST)', 'Email', 'Cohort', 'Event', 'Q#', 'Detail']
@@ -436,8 +469,18 @@ function buildEvents(ss, events) {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function resetSheet(ss, name) {
+  // Defended because the editor's Run button calls whatever function is
+  // selected with no arguments, which is how this got called with no
+  // spreadsheet and failed on every attempt.
+  ss = ss || book()
   var sh = ss.getSheetByName(name)
   if (!sh) return ss.insertSheet(name)
+
+  // clear() wipes contents and formatting but NOT a filter, and Sheets throws
+  // rather than replacing one, so every refresh after the first died here.
+  var existing = sh.getFilter()
+  if (existing) existing.remove()
+
   sh.clear()
   sh.clearConditionalFormatRules()
   // Leave row/column count alone: clearing content is enough and resizing a
@@ -515,6 +558,7 @@ function labelCohort(value) {
 }
 
 function orderTabs(ss) {
+  ss = ss || book()
   var order = [TAB.summary, TAB.cohorts, TAB.funnel, TAB.delivery,
                TAB.students, TAB.answers, TAB.events]
   for (var i = 0; i < order.length; i++) {
