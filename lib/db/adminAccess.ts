@@ -24,36 +24,48 @@ export interface AdminSetRow {
   answer_count: number
 }
 
-/** Recent links, newest first, with how far each lead got. */
+/**
+ * The rows the dashboard table works from.
+ *
+ * The newest `limit` links, PLUS every link that has been opened, however old.
+ *
+ * The second half matters. Filtering by Completed or In Progress on a plain
+ * "newest 200" slice quietly showed a subset: the 1,720 backlog links were all
+ * created within five minutes of each other, so which of them a student has
+ * since opened has nothing to do with recency. The active set is small, a few
+ * dozen against 1,727, so pulling all of it costs nothing and makes those
+ * filters exact.
+ */
 export async function recentSets(limit = 200): Promise<AdminSetRow[]> {
   return await sql`
-    select
-      s.id,
-      s.access_token,
-      s.created_at,
-      s.expires_at,
-      l.id    as lead_id,
-      l.name  as lead_name,
-      l.email as lead_email,
-      l.source as lead_source,
-      l.cohort as lead_cohort,
-      a.id    as attempt_id,
-      a.attempt_number,
-      a.status,
-      coalesce(r.cnt, 0)::int as answer_count
-    from question_sets s
-    left join leads l on l.id = s.lead_id
-    left join lateral (
-      select * from attempts
-      where set_id = s.id
-      order by attempt_number desc
-      limit 1
-    ) a on true
-    left join lateral (
-      select count(*) as cnt from recordings where attempt_id = a.id
-    ) r on true
-    order by s.created_at desc
-    limit ${limit}
+    with base as (
+      select
+        s.id, s.access_token, s.created_at, s.expires_at,
+        l.id as lead_id, l.name as lead_name, l.email as lead_email,
+        l.source as lead_source, l.cohort as lead_cohort,
+        a.id as attempt_id, a.attempt_number, a.status,
+        coalesce(r.cnt, 0)::int as answer_count
+      from question_sets s
+      left join leads l on l.id = s.lead_id
+      left join lateral (
+        select * from attempts
+        where set_id = s.id
+        order by attempt_number desc
+        limit 1
+      ) a on true
+      left join lateral (
+        select count(*) as cnt from recordings where attempt_id = a.id
+      ) r on true
+    )
+    select * from (
+      select * from base order by created_at desc limit ${limit}
+      union
+      select * from base where attempt_id is not null
+    ) x
+    order by
+      -- Anyone who has started comes first: those are the rows worth looking at.
+      (attempt_id is null),
+      created_at desc
   ` as AdminSetRow[]
 }
 
@@ -67,11 +79,10 @@ export interface DashboardStats {
 /**
  * Real totals, counted by the database.
  *
- * The dashboard used to derive these by looping over the recent-links list,
- * which is capped at 200 rows, so "Links Sent" read 200 no matter how many
- * existed and "Completed" only counted the ones that happened to fall inside
- * that slice. A number that silently equals the page size is worse than no
- * number, because it looks plausible.
+ * The dashboard used to derive these by looping the recent-links list, so
+ * "Links Sent" reported the page size and "Completed" only counted what
+ * happened to fall inside that slice. A number that silently equals the page
+ * size is worse than no number, because it looks plausible.
  */
 export async function dashboardStats(): Promise<DashboardStats> {
   const rows = await sql`

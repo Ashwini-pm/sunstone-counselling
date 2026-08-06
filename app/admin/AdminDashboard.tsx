@@ -42,6 +42,8 @@ export default function AdminDashboard({
   const [isPending, startTransition] = useTransition()
 
   const [activeTab, setActiveTab] = useState<string>('all')
+  // The three cards double as a status filter. 'sent' means no filter.
+  const [statusFilter, setStatusFilter] = useState<'sent' | 'completed' | 'in_progress'>('sent')
 
   // Built from the data. Hardcoding NSAT 1-4 / CSAT left every tab empty once
   // leads started arriving with a cohort and no source.
@@ -100,12 +102,14 @@ export default function AdminDashboard({
   const filteredSets = useMemo(() => {
     return recentSets.filter(s => {
       if (activeTab !== 'all' && groupOf(s) !== activeTab) return false
+      if (statusFilter === 'completed' && s.status !== 'submitted') return false
+      if (statusFilter === 'in_progress' && !(s.attempt_id && s.status !== 'submitted')) return false
       const d = new Date(s.created_at)
       if (dateFrom && d < new Date(dateFrom)) return false
       if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false
       return true
     })
-  }, [recentSets, activeTab, dateFrom, dateTo])
+  }, [recentSets, activeTab, statusFilter, dateFrom, dateTo])
 
 
   // Counted by the database, not by looping the list below. That list is
@@ -170,18 +174,27 @@ export default function AdminDashboard({
 
       <div className={styles.content}>
         <div className={styles.statsRow}>
-          <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.sent.toLocaleString('en-IN')}</div>
-            <div className={styles.statLabel}>Links Sent</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.completed.toLocaleString('en-IN')}</div>
-            <div className={styles.statLabel}>Completed</div>
-          </div>
-          <div className={`${styles.statCard} ${stats.in_progress > 0 ? styles.statCardAmber : ''}`}>
-            <div className={styles.statNum}>{stats.in_progress.toLocaleString('en-IN')}</div>
-            <div className={styles.statLabel}>In Progress</div>
-          </div>
+          {([
+            { key: 'sent', label: 'Links Sent', value: stats.sent },
+            { key: 'completed', label: 'Completed', value: stats.completed },
+            { key: 'in_progress', label: 'In Progress', value: stats.in_progress },
+          ] as const).map(card => (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => setStatusFilter(card.key)}
+              aria-pressed={statusFilter === card.key}
+              className={[
+                styles.statCard,
+                styles.statCardBtn,
+                card.key === 'in_progress' && stats.in_progress > 0 ? styles.statCardAmber : '',
+                statusFilter === card.key ? styles.statCardActive : '',
+              ].filter(Boolean).join(' ')}
+            >
+              <div className={styles.statNum}>{card.value.toLocaleString('en-IN')}</div>
+              <div className={styles.statLabel}>{card.label}</div>
+            </button>
+          ))}
         </div>
 
         {(bank.total === 0 || bank.missingAvatar > 0) && (
@@ -362,8 +375,12 @@ export default function AdminDashboard({
             </div>
             <div className={styles.tableFooter}>
               <span className={styles.tableFooterText}>
-                Showing {filteredSets.length} of {stats.sent.toLocaleString('en-IN')} link
-                {stats.sent !== 1 ? 's' : ''}{recentSets.length >= 200 ? ' (most recent 200 loaded)' : ''}
+                Showing {filteredSets.length} of{' '}
+                {(statusFilter === 'completed' ? stats.completed
+                  : statusFilter === 'in_progress' ? stats.in_progress
+                  : stats.sent).toLocaleString('en-IN')} link
+                {stats.sent !== 1 ? 's' : ''}{statusFilter === 'sent' && recentSets.length >= 200
+                  ? ' (most recent 200 loaded, plus everyone who has started)' : ''}
               </span>
               <div className={styles.paginationBtns}>
                 <button className={styles.pageBtn} disabled>‹</button>

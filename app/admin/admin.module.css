@@ -760,3 +760,19 @@
   .paginationBtns { justify-content: center; }
   .pageBtn { min-width: 44px; min-height: 40px; }
 }
+
+/* The stat cards double as the status filter. */
+.statCardBtn {
+  appearance: none;
+  border: 1px solid transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.statCardBtn:hover { border-color: #cbd5e1; }
+.statCardBtn:active { transform: translateY(1px); }
+.statCardActive {
+  border-color: #0d1b3e;
+  box-shadow: 0 0 0 3px rgba(13, 27, 62, 0.08);
+}
