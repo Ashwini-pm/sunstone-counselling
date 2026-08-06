@@ -25,47 +25,43 @@ export interface AdminSetRow {
 }
 
 /**
- * The rows the dashboard table works from.
+ * Every link, for the dashboard table.
  *
- * The newest `limit` links, PLUS every link that has been opened, however old.
+ * There used to be a 200-row cap. The backlog import wrote its three cohorts in
+ * file order, so the newest 200 rows were all one cohort and the other two tabs
+ * read "No leads found" against a badge saying 36. A cap that silently changes
+ * what a filter means is worse than no filter.
  *
- * The second half matters. Filtering by Completed or In Progress on a plain
- * "newest 200" slice quietly showed a subset: the 1,720 backlog links were all
- * created within five minutes of each other, so which of them a student has
- * since opened has nothing to do with recency. The active set is small, a few
- * dozen against 1,727, so pulling all of it costs nothing and makes those
- * filters exact.
+ * The table paginates client-side, so the cost is the payload, not rendering:
+ * roughly 250 bytes a row, so about 450 KB at 1,727 leads. Fine for an internal
+ * page used by a handful of people, and the ceiling below stops it becoming a
+ * surprise. Past that this needs server-side filtering per tab, not a bigger
+ * number.
  */
-export async function recentSets(limit = 200): Promise<AdminSetRow[]> {
+export async function recentSets(limit = 5000): Promise<AdminSetRow[]> {
   return await sql`
-    with base as (
-      select
-        s.id, s.access_token, s.created_at, s.expires_at,
-        l.id as lead_id, l.name as lead_name, l.email as lead_email,
-        l.source as lead_source, l.cohort as lead_cohort,
-        a.id as attempt_id, a.attempt_number, a.status,
-        coalesce(r.cnt, 0)::int as answer_count
-      from question_sets s
-      left join leads l on l.id = s.lead_id
-      left join lateral (
-        select * from attempts
-        where set_id = s.id
-        order by attempt_number desc
-        limit 1
-      ) a on true
-      left join lateral (
-        select count(*) as cnt from recordings where attempt_id = a.id
-      ) r on true
-    )
-    select * from (
-      select * from base order by created_at desc limit ${limit}
-      union
-      select * from base where attempt_id is not null
-    ) x
+    select
+      s.id, s.access_token, s.created_at, s.expires_at,
+      l.id as lead_id, l.name as lead_name, l.email as lead_email,
+      l.source as lead_source, l.cohort as lead_cohort,
+      a.id as attempt_id, a.attempt_number, a.status,
+      coalesce(r.cnt, 0)::int as answer_count
+    from question_sets s
+    left join leads l on l.id = s.lead_id
+    left join lateral (
+      select * from attempts
+      where set_id = s.id
+      order by attempt_number desc
+      limit 1
+    ) a on true
+    left join lateral (
+      select count(*) as cnt from recordings where attempt_id = a.id
+    ) r on true
     order by
-      -- Anyone who has started comes first: those are the rows worth looking at.
-      (attempt_id is null),
-      created_at desc
+      -- Anyone who has started comes first: those are the rows worth reading.
+      (a.id is null),
+      s.created_at desc
+    limit ${limit}
   ` as AdminSetRow[]
 }
 

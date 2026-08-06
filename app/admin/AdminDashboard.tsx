@@ -379,8 +379,7 @@ export default function AdminDashboard({
                 {(statusFilter === 'completed' ? stats.completed
                   : statusFilter === 'in_progress' ? stats.in_progress
                   : stats.sent).toLocaleString('en-IN')} link
-                {stats.sent !== 1 ? 's' : ''}{statusFilter === 'sent' && recentSets.length >= 200
-                  ? ' (most recent 200 loaded, plus everyone who has started)' : ''}
+                {stats.sent !== 1 ? 's' : ''}{recentSets.length >= 5000 ? ' (first 5,000 loaded)' : ''}
               </span>
               <div className={styles.paginationBtns}>
                 <button className={styles.pageBtn} disabled>‹</button>
