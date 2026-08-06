@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { AttemptQuestion } from '@/lib/questions'
 import type { EventName } from '@/lib/events'
-import { RECENT_ADMITS, TICKER_LINE } from '@/lib/socialProof'
+import { RECENT_ADMITS, TICKER_MAIN, TICKER_SECOND } from '@/lib/socialProof'
 import styles from './flow.module.css'
 
 interface Props {
@@ -62,18 +62,28 @@ function fmt(s: number) {
 /**
  * Urgency strip across the top of the first screen.
  *
- * Duplicated content plus a linear translate is the standard marquee trick: the
- * second copy is what the eye sees while the first scrolls away, so the loop has
- * no visible seam. aria-hidden on the duplicate stops a screen reader announcing
- * the line twice.
+ * Lifted from the C-SAT landing page so the two surfaces read as the same
+ * brand: gold accent over dark, masked edges, 30s linear scroll.
+ *
+ * Six copies and a -50% translate. The track resets after travelling exactly
+ * three copies, landing on an identical frame, so the loop has no seam. Two
+ * copies would work on a phone and leave a gap on a wide desktop.
  */
 function UrgencyTicker() {
+  const line = (i: number) => (
+    <p className={styles.tickerLine} key={i} aria-hidden={i > 0 ? 'true' : undefined}>
+      <span className={styles.tickerIcon}>🚀</span>
+      <span className={styles.tickerMain}>{TICKER_MAIN}</span>
+      <span className={styles.tickerSep}>|</span>
+      <span>{TICKER_SECOND}</span>
+    </p>
+  )
   return (
     <div className={styles.ticker} role="status">
-      <div className={styles.tickerTrack}>
-        <span className={styles.tickerItem}>{TICKER_LINE}</span>
-        <span className={styles.tickerItem} aria-hidden="true">{TICKER_LINE}</span>
-        <span className={styles.tickerItem} aria-hidden="true">{TICKER_LINE}</span>
+      <div className={styles.tickerMask}>
+        <div className={styles.tickerTrack}>
+          {[0, 1, 2, 3, 4, 5].map(line)}
+        </div>
       </div>
     </div>
   )
@@ -105,23 +115,21 @@ function ProofCard() {
   const admit = RECENT_ADMITS[i]
   return (
     <div className={`${styles.proof} ${visible ? styles.proofIn : styles.proofOut}`}>
-      <span className={styles.proofDot} />
+      <span className={styles.proofAvatar}>
+        {admit.name.charAt(0)}
+        <span className={styles.proofDot} />
+      </span>
       <div className={styles.proofBody}>
-        <strong>{admit.name}</strong> from {admit.city}
+        <span className={styles.proofTop}>
+          <strong>{admit.name}</strong>
+          <span className={styles.proofCity}>{admit.city}</span>
+        </span>
         <span className={styles.proofWhen}>{admit.when}</span>
       </div>
     </div>
   )
 }
 
-/**
- * Silent demo of the two controls, looping on the setup screen.
- *
- * Runs before the call rather than during it, so nobody learns the interface on
- * the same question they are being judged on. Pure CSS on a 9 second cycle:
- * tap record, timer runs, tap stop, next lights up. No audio, nothing to skip,
- * and it costs the student no time because it plays while they read.
- */
 function DemoLoop() {
   return (
     <div className={styles.demo} aria-hidden="true">

@@ -2452,91 +2452,189 @@
   min-height: 0;
 }
 
-/* ── ticker ──────────────────────────────────────────────────────────────── */
+/* ── ticker: lifted from the C-SAT landing ─────────────────────────────────
+   Same recipe: gold accent at 25% over dark, a 2px accent border underneath,
+   backdrop blur, and a gold glow beneath the bar.
+
+   --accent there is oklch(0.78 0.14 75). Written as a hex first and an oklch
+   override second, because plenty of this audience is on older Android Chrome
+   and a colour value that fails to parse takes its whole declaration with it.
+   ------------------------------------------------------------------------- */
 
 .ticker {
-  background: linear-gradient(90deg, #b45309 0%, #f59e0b 50%, #b45309 100%);
-  color: #fff;
-  overflow: hidden;
-  white-space: nowrap;
-  padding: 9px 0;
+  --accent: #eba941;
+  --accent: oklch(0.78 0.14 75);
+
   position: relative;
-  z-index: 5;
+  z-index: 30;
   flex-shrink: 0;
-  box-shadow: 0 1px 12px rgba(180, 83, 9, 0.3);
+
+  /* accent/25 needs something dark beneath it to read as gold rather than
+     beige. On the landing page that is the hero gradient; here it is our navy. */
+  background-color: #0d1b3e;
+
+  /* Each pair is a plain rgba fallback then the color-mix version. A browser
+     that cannot parse color-mix drops that whole declaration and keeps the one
+     above it, so the bar degrades to the same colour rather than to nothing. */
+  background-image: linear-gradient(rgba(235,169,65,0.25), rgba(235,169,65,0.25));
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--accent) 25%, transparent),
+    color-mix(in srgb, var(--accent) 25%, transparent)
+  );
+
+  border-bottom: 2px solid rgba(235,169,65,0.6);
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+
+  backdrop-filter: blur(4px);
+
+  box-shadow: 0 4px 20px -4px rgba(235,169,65,0.5);
+  box-shadow: 0 4px 20px -4px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* Text fades before it reaches either edge, so nothing is ever clipped
+   mid-letter. 4% and 96% are the landing page's stops. */
+.tickerMask {
+  position: relative;
+  overflow: hidden;
+  padding: 10px 0;
+  mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
 }
 
 .tickerTrack {
-  display: inline-flex;
-  /* Three copies at a third of the width each: the translate ends exactly
-     where the second copy began, so the reset is invisible. */
-  animation: tickerScroll 38s linear infinite;
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 48px;
+  white-space: nowrap;
+  animation: tickerMarquee 30s linear infinite;
 }
 
-.tickerItem {
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding-right: 64px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
-@keyframes tickerScroll {
+@keyframes tickerMarquee {
   from { transform: translateX(0); }
-  to   { transform: translateX(-33.333%); }
+  to   { transform: translateX(-50%); }
 }
+
+.tickerLine {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.375;
+  letter-spacing: 0.025em;
+  color: var(--accent);
+  margin: 0;
+}
+.tickerIcon { margin-right: 8px; }
+.tickerMain { color: #fff; }
+.tickerSep {
+  margin: 0 12px;
+  color: rgba(235,169,65,0.7);
+  color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+@media (min-width: 640px) {
+  .tickerLine { font-size: 14px; }
+}
+
+/* A desktop nicety. Touch has no hover, so a phone loses nothing. */
+.ticker:hover .tickerTrack { animation-play-state: paused; }
 
 /* ── rotating proof card ─────────────────────────────────────────────────── */
 
 .proof {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 11px 14px;
-  max-width: 320px;
-  backdrop-filter: blur(6px);
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px 11px 12px;
+  max-width: 330px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.045));
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px -12px rgba(0,0,0,0.6);
   position: relative;
   z-index: 1;
+  /* Both properties share one easing, so the swap reads as a single motion
+     rather than a fade that finishes before the slide does. */
+  transition: opacity 0.4s cubic-bezier(0.22,1,0.36,1),
+              transform 0.4s cubic-bezier(0.22,1,0.36,1);
 }
-.proofIn  { opacity: 1; transform: translateY(0); }
-.proofOut { opacity: 0; transform: translateY(6px); }
+.proofIn  { opacity: 1; transform: translateY(0) scale(1); }
+.proofOut { opacity: 0; transform: translateY(8px) scale(0.98); }
+
+/* Initial in a disc. Gives the card a fixed left anchor, so names of very
+   different lengths do not make consecutive cards jump about. */
+.proofAvatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0d1b3e;
+  background: linear-gradient(135deg, #fcd34d, #eba941);
+  box-shadow: 0 2px 8px -2px rgba(235,169,65,0.55);
+}
 
 .proofDot {
-  width: 7px;
-  height: 7px;
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #22c55e;
-  flex-shrink: 0;
-  margin-top: 5px;
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
-  animation: proofPulse 2s ease-out infinite;
+  border: 2px solid #0d1b3e;
+  box-shadow: 0 0 0 0 rgba(34,197,94,0.55);
+  animation: proofPulse 2.2s ease-out infinite;
 }
 @keyframes proofPulse {
-  to { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  to { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
 }
 
 .proofBody {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.72);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
-.proofBody strong { color: #fff; font-weight: 700; }
-.proofWhen { display: block; color: rgba(255, 255, 255, 0.5); font-size: 11.5px; }
+.proofTop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proofTop strong { color: #fff; font-weight: 700; }
+.proofCity { font-size: 12px; }
+.proofCity::before { content: '\00b7  '; }
 
-/* Shown only on narrow, where the dark panel that normally holds it is gone. */
+.proofWhen {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.45);
+}
+
+/* Shown only on narrow, where the dark panel that normally holds it is gone.
+   Same card, inverted for a white background. */
 .proofMobile { display: none; }
 .proofMobile .proof {
-  background: #f8fafc;
-  border-color: #e2e8f0;
   max-width: none;
   margin-top: 18px;
+  background: linear-gradient(135deg, #fffbeb, #ffffff);
+  border-color: #fde68a;
+  box-shadow: 0 6px 18px -12px rgba(13,27,62,0.4);
+  backdrop-filter: none;
 }
-.proofMobile .proofBody { color: #64748b; }
-.proofMobile .proofBody strong { color: #0d1b3e; }
+.proofMobile .proofDot { border-color: #fffbeb; }
+.proofMobile .proofTop { color: #94a3b8; }
+.proofMobile .proofTop strong { color: #0d1b3e; }
 .proofMobile .proofWhen { color: #94a3b8; }
 
 /* ── the line under the logo ─────────────────────────────────────────────── */
@@ -2737,14 +2835,16 @@
 
 @media (max-width: 900px) {
   .proofMobile { display: block; }
-  .tickerItem { font-size: 11.5px; padding-right: 40px; }
-  .ticker { padding: 8px 0; }
+  .tickerLine { font-size: 12px; }
+  .tickerTrack { gap: 32px; }
+  .tickerMask { padding: 8px 0; }
   .demoBar { gap: 12px; }
   .gateEyebrow { font-size: 12px; }
 }
 
 @media (max-width: 380px) {
-  .tickerItem { font-size: 11px; }
+  .tickerLine { font-size: 11px; }
+  .tickerTrack { gap: 24px; }
   .demoRec { width: 40px; height: 40px; }
   .demoNext { padding: 8px 14px; font-size: 12px; }
 }

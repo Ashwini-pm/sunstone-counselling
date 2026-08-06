@@ -43,6 +43,9 @@ export const RECENT_ADMITS: Admit[] = [
   { name: 'Jhanvi', city: 'Guwahati', when: 'confirmed her admission 3 days ago' },
 ]
 
-/** Ticker line. Kept here so the wording is edited in one place. */
-export const TICKER_LINE =
-  `Last chance to book your counselling call  ·  ${ADMISSIONS_LAST_WEEK} students took admission in the last week`
+/**
+ * Ticker copy, split the way the C-SAT landing splits it: the claim in white,
+ * then a separator, then a supporting line in gold.
+ */
+export const TICKER_MAIN = 'Last chance to book your counselling call'
+export const TICKER_SECOND = `${ADMISSIONS_LAST_WEEK} students took admission last week`
