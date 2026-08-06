@@ -55,6 +55,39 @@ export async function recentSets(limit = 200): Promise<AdminSetRow[]> {
   ` as AdminSetRow[]
 }
 
+export interface DashboardStats {
+  sent: number
+  completed: number
+  in_progress: number
+  not_opened: number
+}
+
+/**
+ * Real totals, counted by the database.
+ *
+ * The dashboard used to derive these by looping over the recent-links list,
+ * which is capped at 200 rows, so "Links Sent" read 200 no matter how many
+ * existed and "Completed" only counted the ones that happened to fall inside
+ * that slice. A number that silently equals the page size is worse than no
+ * number, because it looks plausible.
+ */
+export async function dashboardStats(): Promise<DashboardStats> {
+  const rows = await sql`
+    select
+      count(*)::int as sent,
+      count(*) filter (where a.status = 'submitted')::int   as completed,
+      count(*) filter (where a.id is not null
+                         and a.status <> 'submitted')::int  as in_progress,
+      count(*) filter (where a.id is null)::int             as not_opened
+    from question_sets s
+    left join lateral (
+      select id, status from attempts
+      where set_id = s.id order by attempt_number desc limit 1
+    ) a on true
+  ` as DashboardStats[]
+  return rows[0]
+}
+
 export async function bankStatus() {
   const result = await sql`
     select

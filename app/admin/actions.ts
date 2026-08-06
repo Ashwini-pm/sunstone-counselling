@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { currentAdmin } from '@/lib/auth'
-import { createLeadAndSet, recentSets, bankStatus, type AdminSetRow } from '@/lib/db/adminAccess'
+import {
+  createLeadAndSet, recentSets, bankStatus, dashboardStats,
+  type AdminSetRow,
+} from '@/lib/db/adminAccess'
 
 // NOTE: this file is 'use server'. Every export must be an async function.
 // Types and constants live in ./labels.ts and @/lib/db/adminAccess.
@@ -77,4 +80,10 @@ export async function getBankStatus() {
   const admin = await currentAdmin()
   if (!admin) return { total: 0, groups: 0, missingAvatar: 0 }
   return bankStatus()
+}
+
+export async function getDashboardStats() {
+  const admin = await currentAdmin()
+  if (!admin) throw new Error('Not authorised')
+  return dashboardStats()
 }

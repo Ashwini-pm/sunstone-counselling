@@ -30,10 +30,12 @@ type BankStatus = { total: number; groups: number; missingAvatar: number }
 export default function AdminDashboard({
   adminName,
   recentSets,
+  stats,
   bank,
 }: {
   adminName: string
   recentSets: AdminSetRow[]
+  stats: { sent: number; completed: number; in_progress: number; not_opened: number }
   bank: BankStatus
 }) {
   const [isPending, startTransition] = useTransition()
@@ -107,15 +109,9 @@ export default function AdminDashboard({
     return counts
   }, [recentSets])
 
-  const stats = useMemo(() => {
-    let sent = 0, completed = 0, inProgress = 0
-    for (const s of recentSets) {
-      sent++
-      if (s.status === 'submitted') completed++
-      else if (s.attempt_id) inProgress++
-    }
-    return { sent, completed, inProgress }
-  }, [recentSets])
+  // Counted by the database, not by looping the list below. That list is
+  // capped at 200 rows, so deriving totals from it made "Links Sent" report
+  // the page size and "Completed" miss everything outside the slice.
 
   function downloadCSV() {
     const rows = [
@@ -174,15 +170,15 @@ export default function AdminDashboard({
       <div className={styles.content}>
         <div className={styles.statsRow}>
           <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.sent}</div>
+            <div className={styles.statNum}>{stats.sent.toLocaleString('en-IN')}</div>
             <div className={styles.statLabel}>Links Sent</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.completed}</div>
+            <div className={styles.statNum}>{stats.completed.toLocaleString('en-IN')}</div>
             <div className={styles.statLabel}>Completed</div>
           </div>
-          <div className={`${styles.statCard} ${stats.inProgress > 0 ? styles.statCardAmber : ''}`}>
-            <div className={styles.statNum}>{stats.inProgress}</div>
+          <div className={`${styles.statCard} ${stats.in_progress > 0 ? styles.statCardAmber : ''}`}>
+            <div className={styles.statNum}>{stats.in_progress.toLocaleString('en-IN')}</div>
             <div className={styles.statLabel}>In Progress</div>
           </div>
         </div>
@@ -365,7 +361,8 @@ export default function AdminDashboard({
             </div>
             <div className={styles.tableFooter}>
               <span className={styles.tableFooterText}>
-                Showing {filteredSets.length} lead{filteredSets.length !== 1 ? 's' : ''}
+                Showing {filteredSets.length} of {stats.sent.toLocaleString('en-IN')} link
+                {stats.sent !== 1 ? 's' : ''}{recentSets.length >= 200 ? ' (most recent 200 loaded)' : ''}
               </span>
               <div className={styles.paginationBtns}>
                 <button className={styles.pageBtn} disabled>‹</button>

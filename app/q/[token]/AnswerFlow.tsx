@@ -153,31 +153,10 @@ function DemoLoop() {
   )
 }
 
-function IconCamera() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
-    </svg>
-  )
-}
-function IconMic() {
-  return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-    </svg>
-  )
-}
 function IconClipboard() {
   return (
     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>
-    </svg>
-  )
-}
-function IconCheck() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
     </svg>
   )
 }
@@ -196,6 +175,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [camError, setCamError] = useState('')
+  // True when the camera was refused and we fell back to recording audio.
+  const [audioOnly, setAudioOnly] = useState(false)
   const [overlayMsg, setOverlayMsg] = useState('')
 
   // Which questions have finished playing their avatar video. Recording stays
@@ -216,11 +197,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
   // Setup wizard: camera/mic, then instructions. No fullscreen step — this is
   // not a proctored exam.
-  const [checkStep, setCheckStep] = useState<1 | 2>(1)
   const [micLevel, setMicLevel] = useState(0)
   const [micEverDetected, setMicEverDetected] = useState(false)
-  // The mic check stops blocking after a grace period. See the button below.
-  const [micGraceOver, setMicGraceOver] = useState(false)
   const animFrameRef = useRef<number | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -290,37 +268,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // Fires once per page load. A ref guard rather than state, both because
   // StrictMode double-invokes effects in development and because
   // react-hooks/set-state-in-effect has already failed a build in this file.
-  // Ask for the camera as soon as the step is reached.
-  //
-  // The logs said 7 people tapped "Check setup" and only 3 ever reached the
-  // permission prompt: they landed on a screen whose sole action was a button,
-  // and stopped. The browser prompt is a far stronger call to action than
-  // anything we can render, so raise it ourselves. The button stays as the
-  // retry path for anyone who dismisses it.
-  const camAutoTried = useRef(false)
-  useEffect(() => {
-    if (stage !== 'ready' || checkStep !== 1 || stream || camAutoTried.current) return
-    camAutoTried.current = true
-    track('camera_autostart')
-    void enableCamera()
-    // enableCamera is stable for the life of the component and re-running this
-    // on every render would re-prompt, which browsers punish.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, checkStep, stream])
-
-  // Unblock the mic check after a few seconds.
-  //
-  // It used to be a hard gate: Continue stayed disabled until the meter read a
-  // signal, with no skip and no timeout. A quiet room, a held-away phone, a
-  // low-gain mic or a flat stream trapped the student on that screen forever.
-  // A missed reading is not evidence of a broken microphone, and losing the
-  // lead outright is worse than risking one quiet answer.
-  useEffect(() => {
-    if (stage !== 'ready' || checkStep !== 1 || !stream || micEverDetected) return
-    const id = setTimeout(() => setMicGraceOver(true), 6000)
-    return () => clearTimeout(id)
-  }, [stage, checkStep, stream, micEverDetected])
-
   const introLogged = useRef(false)
   useEffect(() => {
     if (introLogged.current) return
@@ -340,23 +287,69 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     return () => clearInterval(id)
   }, [stage])
 
-  async function enableCamera() {
+  /**
+   * Get a stream, without a screen of our own asking for one.
+   *
+   * The browser's prompt is the only permission gate there is, and it cannot be
+   * bypassed, so putting our own "check your camera" step in front of it just
+   * added a screen to abandon. 15% left at that screen and it verified nothing
+   * the call itself would not.
+   *
+   * Camera blocked is not the end: 9 of 21 people tapped Block, and asking for
+   * the microphone alone is a much smaller request that most of them accept. An
+   * audio answer is worth far more than a lost lead.
+   *
+   * Returns true if we have something to record with.
+   */
+  async function ensureMedia(): Promise<boolean> {
+    if (stream) return true
     setCamError('')
-    // The browser permission prompt is the single most likely place to lose a
-    // cold lead, and until now a denial was indistinguishable from someone who
-    // simply never read past the intro.
     track('camera_requested')
+
     try {
-      setStream(await navigator.mediaDevices.getUserMedia({ video: true, audio: true }))
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      setStream(s)
       track('camera_granted')
+      return true
     } catch (e: unknown) {
-      const name = (e as Error).name
+      const name = (e as Error)?.name ?? 'unknown'
       track('camera_denied', { meta: { reason: name } })
-      setCamError(`Could not access camera: ${name}`)
+
+      // Second chance, audio only.
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+        setStream(s)
+        setAudioOnly(true)
+        track('camera_granted', { meta: { audioOnly: true, cameraReason: name } })
+        return true
+      } catch (e2: unknown) {
+        const n2 = (e2 as Error)?.name ?? 'unknown'
+        track('camera_denied', { meta: { reason: n2, stage: 'audio_fallback' } })
+        // A blocked origin is remembered, so calling getUserMedia again does
+        // nothing at all. Telling them to "try again" would be a lie.
+        setCamError(
+          n2 === 'NotAllowedError'
+            ? 'Your browser is blocking the microphone for this page. Tap the lock or ⓘ icon next to the web address, allow Microphone, then reload.'
+            : `Could not reach your microphone (${n2}). Please check no other app is using it, then reload.`,
+        )
+        return false
+      }
     }
   }
 
+  /** Kept for the in-call "turn on camera" control. */
+  async function enableCamera() {
+    await ensureMedia()
+  }
+
   async function begin() {
+    // The permission prompt belongs on a deliberate tap, not on a screen of its
+    // own. If everything is refused we stop here rather than dropping someone
+    // into a call they have no way to answer.
+    setOverlayMsg('Starting…')
+    const ok = await ensureMedia()
+    if (!ok) { setOverlayMsg(''); return }
+
     setOverlayMsg('Loading your questions…')
     let drawnCount = 0
     try {
@@ -434,8 +427,9 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
     track('recording_stopped', {
       questionId, position,
-      meta: { durationSec, bytes: blob.size },
+      meta: { durationSec, bytes: blob.size, audioOnly, micHeard: micEverDetected },
     })
+    if (!micEverDetected) track('mic_not_detected', { questionId, position })
 
     setRecordings(prev => ({
       ...prev,
@@ -615,10 +609,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             </div>
             <h2 className={styles.gateRightTitle}>Hi {leadName.split(' ')[0]}</h2>
             <p className={styles.gateRightSub}>
-              Before we start, let us quickly check your camera and microphone.
+              Your counsellor will ask a few questions. Answer them in your own words.
             </p>
             <button className={styles.gateGoogleBtn} onClick={() => { track('intro_accepted'); setStage('ready') }}>
-              Check setup →
+              Proceed →
             </button>
             <div className={styles.gateTrustRow}>
               <span className={styles.gateTrustItem}>⏱ ~6 minutes</span>
@@ -640,8 +634,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
   // ── SETUP WIZARD ──
   if (stage === 'ready') {
-    const STEPS = ['Camera & Microphone', 'Instructions']
-
     const instRows = [
       {
         icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
@@ -669,90 +661,18 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       <div className={styles.wizardPage}>
         <div className={styles.wizardNav}>
           <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.wizardNavLogo} />
-          <div className={styles.wizardSteps}>
-            {STEPS.map((label, i) => (
-              <div key={i} className={`${styles.wizardStep} ${checkStep === i + 1 ? styles.wizardStepActive : checkStep > i + 1 ? styles.wizardStepDone : ''}`}>
-                <div className={styles.wizardStepDot}>
-                  {checkStep > i + 1 ? <IconCheck /> : i + 1}
-                </div>
-                <span className={styles.wizardStepLabel}>{label}</span>
-                {i < STEPS.length - 1 && <div className={styles.wizardStepLine} />}
-              </div>
-            ))}
-          </div>
           <div className={styles.wizardNavSpacer} />
         </div>
 
         <div className={styles.wizardBody}>
-          {checkStep === 1 && (
-            <div className={styles.wizardPane}>
-              <div className={styles.wizardIconWrap}><IconCamera /></div>
-              <h2 className={styles.wizardTitle}>Camera &amp; Microphone</h2>
-              <p className={styles.wizardDesc}>
-                We need access to record your answers. Click below and accept the browser prompt.
-              </p>
-              <div className={styles.wizardPreviewWrap}>
-                {stream
-                  ? <>
-                      <video ref={camPreviewRef} autoPlay muted playsInline className={styles.wizardPreviewVid} />
-                      <div className={styles.camLiveBadge}><span className={styles.camLiveDot} />LIVE</div>
-                    </>
-                  : <div className={styles.wizardPreviewPlaceholder}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                      <span>Camera preview will appear here</span>
-                    </div>
-                }
-              </div>
-
-              {stream && (
-                <div className={styles.wizardMicTest}>
-                  <div className={styles.wizardMicBarRow}>
-                    <div className={styles.wizardMicBarIcon}><IconMic /></div>
-                    <div className={styles.wizardMicBarTrack}>
-                      <div
-                        className={`${styles.wizardMicBarFill} ${micLevel > 0 ? styles.wizardMicBarFillActive : ''}`}
-                        style={{ width: `${micLevel}%` }}
-                      />
-                    </div>
-                    <div className={`${styles.wizardMicLabel} ${micEverDetected ? styles.wizardMicLabelOk : ''}`}>
-                      {micEverDetected ? 'Detected' : 'Speak'}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {camError && <p className={styles.camError}>{camError}</p>}
-              {!stream
-                ? <button className={styles.wizardBtn} onClick={enableCamera}>Allow camera &amp; microphone</button>
-                : <>
-                    <button
-                      className={micEverDetected ? styles.wizardBtnSuccess : styles.wizardBtn}
-                      onClick={() => {
-                        if (!micEverDetected) track('mic_not_detected')
-                        setCheckStep(2)
-                      }}
-                      disabled={!micEverDetected && !micGraceOver}
-                    >
-                      {micEverDetected
-                        ? 'Camera and mic confirmed. Continue'
-                        : micGraceOver ? 'Continue anyway' : 'Say something to confirm your mic'}
-                    </button>
-                    {!micEverDetected && micGraceOver && (
-                      <p className={styles.micNote}>
-                        We could not pick up any sound. You can carry on, but please
-                        speak up when you answer.
-                      </p>
-                    )}
-                  </>
-              }
-            </div>
-          )}
-
-          {checkStep === 2 && (
+          {(
             <div className={styles.wizardPane}>
               <div className={styles.wizardIconWrap}><IconClipboard /></div>
-              <h2 className={styles.wizardTitle}>You are all set</h2>
-              <p className={styles.wizardDesc}>Have a quick read, then start when you are ready.</p>
+              <h2 className={styles.wizardTitle}>How this works</h2>
+              <p className={styles.wizardDesc}>
+                Have a quick read, then start. Your browser will ask for the camera
+                and microphone once, so that your answers can be recorded.
+              </p>
 
               {/* Plays while they read the list below, so learning the two
                   controls costs no extra time and does not happen during a
@@ -772,6 +692,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               </div>
               {/* Pinned, so it is reachable without scrolling past the
                   instructions on a phone. */}
+              {camError && <p className={styles.camError}>{camError}</p>}
+
               <div className={styles.wizardStickyBar}>
                 <button className={styles.wizardBtnSuccess} onClick={begin}>Start</button>
               </div>
@@ -916,6 +838,16 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       {/* Lead tile. Always the corner tile, so the lead can see their framing. */}
       <div className={`${hasAvatar ? styles.callPip : styles.callMain} ${styles.callSelfMirror}`}>
         <video ref={videoRef} autoPlay muted playsInline />
+
+        {/* Camera refused, microphone allowed. The tile would otherwise be a
+            black rectangle that looks like a fault. */}
+        {audioOnly && stream && (
+          <div className={styles.callAudioOnly}>
+            <span className={styles.callAudioOnlyIcon}>🎙</span>
+            <span>Audio only</span>
+          </div>
+        )}
+
         {!stream && (
           <div className={styles.callCamOff}>
             <span style={{ fontSize: 28 }}>📷</span>
@@ -1004,8 +936,17 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             : heard ? 'Recording starts automatically. Tap Next when you finish.' : 'Listen to the question…'}
         </div>
       )}
-      {recording && (
+      {recording && micEverDetected && (
         <div className={styles.callHint}>Answer away. Tap Next when you are done.</div>
+      )}
+
+      {/* The mic check you asked for, as a warning rather than a gate. It is
+          checked while they answer instead of on a screen beforehand, so a
+          quiet meter costs them a nudge and not the whole session. */}
+      {recording && !micEverDetected && elapsed >= 4 && (
+        <div className={styles.callHintWarn}>
+          We cannot hear you yet. Speak up, or check your microphone.
+        </div>
       )}
       {rec && !recording && uploadStatus === 'done' && (
         <div className={styles.callHint}>Answer saved. Retake it, or continue.</div>

@@ -2872,3 +2872,26 @@
   z-index: 5;
 }
 .wizardStickyBar .wizardBtnSuccess { width: 100%; }
+
+/* Camera refused, microphone allowed. Without this the lead tile is a black
+   rectangle, which reads as something being broken. */
+.callAudioOnly {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #0d1b3e;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+}
+.callAudioOnlyIcon { font-size: 20px; }
+
+/* The mic warning during a recording. Same placement as the normal hint. */
+.callHintWarn {
+  composes: callHint;
+  color: #fde68a;
+}
