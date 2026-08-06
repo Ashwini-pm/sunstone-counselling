@@ -4,11 +4,10 @@ import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 import { createLeadLink } from './actions'
-import { SOURCE_LABELS, SOURCE_TABS } from './labels'
+import { groupLabel } from './labels'
 import type { AdminSetRow } from '@/lib/db/adminAccess'
 import styles from './admin.module.css'
 
-const TABS = SOURCE_TABS
 
 function copyText(text: string, onDone?: () => void) {
   if (navigator.clipboard) {
@@ -31,16 +30,26 @@ export default function AdminDashboard({
   adminName,
   recentSets,
   stats,
+  cohorts,
   bank,
 }: {
   adminName: string
   recentSets: AdminSetRow[]
   stats: { sent: number; completed: number; in_progress: number; not_opened: number }
+  cohorts: { key: string; label: string; total: number; open: number }[]
   bank: BankStatus
 }) {
   const [isPending, startTransition] = useTransition()
 
   const [activeTab, setActiveTab] = useState<string>('all')
+
+  // Built from the data. Hardcoding NSAT 1-4 / CSAT left every tab empty once
+  // leads started arriving with a cohort and no source.
+  const TABS = useMemo(
+    () => [{ key: 'all', label: 'All Leads', total: 0, open: 0 }, ...cohorts],
+    [cohorts],
+  )
+  const groupOf = (s: AdminSetRow) => s.lead_cohort ?? s.lead_source ?? 'unassigned'
   const [leadName, setLeadName] = useState('')
   const [leadEmail, setLeadEmail] = useState('')
   const [leadPhone, setLeadPhone] = useState('')
@@ -90,7 +99,7 @@ export default function AdminDashboard({
 
   const filteredSets = useMemo(() => {
     return recentSets.filter(s => {
-      if (activeTab !== 'all' && s.lead_source !== activeTab) return false
+      if (activeTab !== 'all' && groupOf(s) !== activeTab) return false
       const d = new Date(s.created_at)
       if (dateFrom && d < new Date(dateFrom)) return false
       if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false
@@ -98,16 +107,6 @@ export default function AdminDashboard({
     })
   }, [recentSets, activeTab, dateFrom, dateTo])
 
-  const openBySource = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const s of recentSets) {
-      if (s.status !== 'submitted') {
-        const key = s.lead_source ?? 'unknown'
-        counts[key] = (counts[key] || 0) + 1
-      }
-    }
-    return counts
-  }, [recentSets])
 
   // Counted by the database, not by looping the list below. That list is
   // capped at 200 rows, so deriving totals from it made "Links Sent" report
@@ -119,7 +118,7 @@ export default function AdminDashboard({
       ...filteredSets.map(s => [
         s.lead_name || '',
         s.lead_email || '',
-        SOURCE_LABELS[s.lead_source ?? ''] || s.lead_source || '',
+        groupLabel(groupOf(s)),
         !s.attempt_id ? 'Not started' : s.status === 'submitted' ? 'Completed' : 'In progress',
         String(s.answer_count),
         new Date(s.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -141,7 +140,9 @@ export default function AdminDashboard({
         <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.sunstoneLogo} />
         <div className={styles.tabPillGroup}>
           {TABS.map(t => {
-            const badge = t.key === 'all' ? 0 : openBySource[t.key] || 0
+            // Counted across every lead by the database. The previous badge
+            // was derived from the 200 rows loaded below, so it under-reported.
+            const badge = t.key === 'all' ? 0 : t.open
             return (
               <button
                 key={t.key}
@@ -149,7 +150,7 @@ export default function AdminDashboard({
                 onClick={() => setActiveTab(t.key)}
                 style={badge > 0 ? { paddingRight: 22 } : undefined}
               >
-                {t.label}
+                {t.key === 'all' ? 'All Leads' : groupLabel(t.key)}
                 {badge > 0 && (
                   <span className={`${styles.tabBadge} ${activeTab === t.key ? styles.tabBadgeActive : ''}`}>
                     {badge}
@@ -280,7 +281,7 @@ export default function AdminDashboard({
               <div className={styles.sectionSub}>
                 {activeTab === 'all'
                   ? 'All leads across NSAT and CSAT'
-                  : `Leads from ${TABS.find(t => t.key === activeTab)?.label}`}
+                  : groupLabel(activeTab)}
               </div>
             </div>
             <div className={styles.tableActions}>
@@ -320,8 +321,8 @@ export default function AdminDashboard({
                           <div className={styles.candEmail}>{s.lead_email || ''}</div>
                         </td>
                         <td className={styles.tdCenter} data-label="Source">
-                          {s.lead_source
-                            ? <span className={`${styles.pill} ${styles.grey}`}>{SOURCE_LABELS[s.lead_source] || s.lead_source}</span>
+                          {(s.lead_cohort ?? s.lead_source)
+                            ? <span className={`${styles.pill} ${styles.grey}`}>{groupLabel(groupOf(s))}</span>
                             : <span className={styles.scoreDash}>—</span>}
                         </td>
                         <td className={styles.tdCenter} data-label="Status">{statusPill(s)}</td>

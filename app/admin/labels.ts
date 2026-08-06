@@ -15,11 +15,15 @@ export const SOURCE_LABELS: Record<string, string> = {
   csat: 'CSAT',
 }
 
-export const SOURCE_TABS: { key: string; label: string }[] = [
-  { key: 'all', label: 'All Leads' },
-  { key: 'nsat1', label: 'NSAT 1' },
-  { key: 'nsat2', label: 'NSAT 2' },
-  { key: 'nsat3', label: 'NSAT 3' },
-  { key: 'nsat4', label: 'NSAT 4' },
-  { key: 'csat', label: 'CSAT' },
-]
+/**
+ * Display name for a cohort or a source.
+ *
+ * Imported cohorts carry a numeric prefix, "1 Passed, slot not booked", which
+ * is what sorts them into funnel order rather than alphabetical. Strip it for
+ * display, keep it for sorting.
+ */
+export function groupLabel(key: string): string {
+  if (SOURCE_LABELS[key]) return SOURCE_LABELS[key]
+  if (key === 'unassigned') return 'Unassigned'
+  return key.replace(/^\s*\d+\s+/, '')
+}

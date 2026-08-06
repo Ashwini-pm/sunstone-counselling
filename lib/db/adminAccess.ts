@@ -17,6 +17,7 @@ export interface AdminSetRow {
   lead_name: string | null
   lead_email: string | null
   lead_source: string | null
+  lead_cohort: string | null
   attempt_id: string | null
   attempt_number: number | null
   status: string | null
@@ -35,6 +36,7 @@ export async function recentSets(limit = 200): Promise<AdminSetRow[]> {
       l.name  as lead_name,
       l.email as lead_email,
       l.source as lead_source,
+      l.cohort as lead_cohort,
       a.id    as attempt_id,
       a.attempt_number,
       a.status,
@@ -86,6 +88,45 @@ export async function dashboardStats(): Promise<DashboardStats> {
     ) a on true
   ` as DashboardStats[]
   return rows[0]
+}
+
+export interface CohortOption {
+  key: string
+  label: string
+  total: number
+  open: number
+}
+
+/**
+ * The tabs, derived from the data instead of hardcoded.
+ *
+ * The bar used to list NSAT 1-4 and CSAT, which are `source` values. The
+ * backlog import keys on `cohort` instead and leaves source null, so every one
+ * of those tabs was empty for 1,720 leads while the only usable view was "All".
+ * Building the list from what is actually in the table means it cannot drift
+ * again the next time a campaign defines its own groups.
+ *
+ * Counted over every lead, not the 200 rows the table below loads.
+ */
+export async function cohortOptions(): Promise<CohortOption[]> {
+  const rows = await sql`
+    select
+      coalesce(l.cohort, l.source, 'unassigned') as key,
+      count(distinct s.id)::int as total,
+      count(distinct s.id) filter (
+        where a.id is not null and a.status <> 'submitted'
+      )::int as open
+    from leads l
+    join question_sets s on s.lead_id = l.id
+    left join lateral (
+      select id, status from attempts
+      where set_id = s.id order by attempt_number desc limit 1
+    ) a on true
+    group by coalesce(l.cohort, l.source, 'unassigned')
+    order by key asc
+  ` as { key: string; total: number; open: number }[]
+
+  return rows.map(r => ({ ...r, label: r.key }))
 }
 
 export async function bankStatus() {

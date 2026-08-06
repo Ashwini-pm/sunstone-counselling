@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { currentAdmin } from '@/lib/auth'
 import {
-  createLeadAndSet, recentSets, bankStatus, dashboardStats,
+  createLeadAndSet, recentSets, bankStatus, dashboardStats, cohortOptions,
   type AdminSetRow,
 } from '@/lib/db/adminAccess'
 
@@ -80,6 +80,12 @@ export async function getBankStatus() {
   const admin = await currentAdmin()
   if (!admin) return { total: 0, groups: 0, missingAvatar: 0 }
   return bankStatus()
+}
+
+export async function getCohortOptions() {
+  const admin = await currentAdmin()
+  if (!admin) throw new Error('Not authorised')
+  return cohortOptions()
 }
 
 export async function getDashboardStats() {
