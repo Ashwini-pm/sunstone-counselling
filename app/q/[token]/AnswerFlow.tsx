@@ -208,7 +208,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [captionOpen, setCaptionOpen] = useState(true)
   // Looping clip of the counsellor listening. Null until one is generated, in
   // which case the frozen last frame plus a CSS drift is used instead.
-  const [idleUrl, setIdleUrl] = useState<string | null>(null)
+  const [idleUrls, setIdleUrls] = useState<string[]>([])
 
   const [globalElapsed, setGlobalElapsed] = useState(0)
   const globalElapsedRef = useRef(0)
@@ -332,12 +332,12 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attemptId }),
       })
-      const { questions: drawn, closingUrl: closing, idleUrl: idle, error } = await res.json()
+      const { questions: drawn, closingUrl: closing, idleUrls: idles, idleUrl: idle, error } = await res.json()
       if (error) throw new Error(error)
       drawnCount = (drawn as AttemptQuestion[]).length
       setQuestions(drawn as AttemptQuestion[])
       setClosingUrl(closing ?? null)
-      setIdleUrl(idle ?? null)
+      setIdleUrls(idles ?? (idle ? [idle] : []))
     } catch {
       setOverlayMsg('')
       alert('Could not load your questions. Please refresh and try again.')
@@ -735,14 +735,14 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               src={closingUrl}
               autoPlay
               playsInline
-              style={closingDone && idleUrl ? { display: 'none' } : undefined}
+              style={closingDone && idleUrls.length > 0 ? { display: 'none' } : undefined}
               onEnded={() => {
                 track('closing_played')
                 setClosingDone(true)
               }}
             />
-            {closingDone && idleUrl && (
-              <video src={idleUrl} autoPlay loop muted playsInline />
+            {closingDone && idleUrls.length > 0 && (
+              <video src={idleUrls[0]} autoPlay loop muted playsInline />
             )}
           </div>
 
@@ -793,6 +793,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // The clip is finite: once it ends the element holds its final frame, which
   // reads as a dead photo. Prefer a looping idle clip, else a CSS drift.
   const clipEnded = !!avatarDone[questionId]
+  // A different clip per question, walked in order rather than picked at
+  // random: random repeats itself roughly one question in three across five,
+  // which is the exact effect the extra clips were rendered to avoid.
+  const idleUrl = idleUrls.length ? idleUrls[idx % idleUrls.length] : null
   const showIdle = clipEnded && !!idleUrl
 
   return (

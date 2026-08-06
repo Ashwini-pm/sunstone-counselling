@@ -225,17 +225,17 @@ export default function AdminDashboard({
                 />
               </div>
               <div className={styles.formField}>
-                <label className={styles.fieldLabel}>Lead email</label>
+                <label className={styles.fieldLabel}>Lead email (optional)</label>
                 <input
                   type="email" className={styles.input} placeholder="lead@example.com"
-                  value={leadEmail} onChange={e => setLeadEmail(e.target.value)} required
+                  value={leadEmail} onChange={e => setLeadEmail(e.target.value)}
                 />
               </div>
               <div className={styles.formField}>
                 <label className={styles.fieldLabel}>Phone</label>
                 <input
                   type="tel" className={styles.input} placeholder="98765 43210"
-                  value={leadPhone} onChange={e => setLeadPhone(e.target.value)}
+                  value={leadPhone} onChange={e => setLeadPhone(e.target.value)} required
                 />
               </div>
               <div className={styles.formField}>

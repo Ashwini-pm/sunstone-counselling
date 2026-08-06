@@ -76,23 +76,27 @@ export async function bankStatus() {
 /** Create or update a lead, then issue them a question set. */
 export async function createLeadAndSet(input: {
   name: string
-  email: string
+  email: string | null
   phone10: string | null
   source: string | null
   city: string | null
   createdBy: string | null
 }): Promise<{ leadId: string; setId: string; accessToken: string }> {
+  // Conflicts on phone10, not email. 005 made the phone the identity of a lead
+  // and 007 dropped the unique index on email, so the old ON CONFLICT (email)
+  // now fails outright: Postgres needs a matching unique constraint and there
+  // is none. Two students sharing one email address is ordinary in this data.
   const leadRows = await sql`
     insert into leads (name, email, phone10, source, city, created_by)
     values (
       ${input.name}, ${input.email}, ${input.phone10},
       ${input.source}, ${input.city}, ${input.createdBy}
     )
-    on conflict (email) do update
-      set name    = excluded.name,
-          phone10 = coalesce(excluded.phone10, leads.phone10),
-          source  = coalesce(excluded.source, leads.source),
-          city    = coalesce(excluded.city, leads.city)
+    on conflict (phone10) do update
+      set name   = excluded.name,
+          email  = coalesce(excluded.email,  leads.email),
+          source = coalesce(excluded.source, leads.source),
+          city   = coalesce(excluded.city,   leads.city)
     returning id
   ` as { id: string }[]
 

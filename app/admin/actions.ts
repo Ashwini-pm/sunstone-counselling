@@ -40,13 +40,18 @@ export async function createLeadLink(formData: FormData) {
   const source = (formData.get('source') as string) || null
   const city = (formData.get('city') as string | null)?.trim() || null
 
-  if (!name || !email) return { error: 'Name and email are required' }
+  // Phone, not email. It is the lead's identity since 005, so a row without
+  // one cannot be inserted, and two leads sharing an email is now ordinary.
+  const phone10 = toPhone10(phone)
+  if (!name || !phone10) {
+    return { error: 'Name and a valid 10-digit phone number are required' }
+  }
 
   try {
     const { accessToken } = await createLeadAndSet({
       name,
-      email,
-      phone10: toPhone10(phone),
+      email: email || null,
+      phone10,
       source,
       city,
       createdBy: admin.id || null,

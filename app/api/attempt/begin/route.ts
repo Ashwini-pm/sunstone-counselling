@@ -45,18 +45,27 @@ async function closingAvatar(): Promise<string | null> {
 }
 
 /**
- * A short looping clip of the counsellor listening, played while the lead
- * answers so the main tile is not a frozen final frame. Optional: without it
- * the client falls back to a CSS drift on the last frame.
+ * Short looping clips of the counsellor listening, played while the lead
+ * answers so the main tile is not a frozen final frame.
+ *
+ * All of them, not one. A single clip on a loop reads as mechanical: the same
+ * head movement every few seconds draws more attention than a still frame
+ * would. The client cycles through these so no two questions in a row show the
+ * same one. Optional: with none, the client falls back to a CSS drift.
  */
-async function idleAvatar(): Promise<string | null> {
+async function idleAvatars(): Promise<string[]> {
   const rows = await sql`
     select avatar_url from questions
-    where bank = 'idle' and active
-    order by sort_order asc
-    limit 1
-  ` as { avatar_url: string | null }[]
-  return signAvatar(rows[0]?.avatar_url ?? null)
+    where bank = 'idle' and active and avatar_url is not null
+    -- position_group, not sort_order. Every idle row shares sort_order 98, so
+    -- ordering by it left the choice to the planner: with three rows and a
+    -- LIMIT 1, production could serve any of them, including one nobody had
+    -- watched. Order by something actually unique.
+    order by position_group asc
+  ` as { avatar_url: string }[]
+
+  const signed = await Promise.all(rows.map(r => signAvatar(r.avatar_url)))
+  return signed.filter((u): u is string => !!u)
 }
 
 export async function POST(req: Request) {
@@ -98,10 +107,12 @@ export async function POST(req: Request) {
         durationSec: row.duration_sec,
       })),
     )
+    const idleUrls = await idleAvatars()
     return NextResponse.json({
       questions,
       closingUrl: await closingAvatar(),
-      idleUrl: await idleAvatar(),
+      idleUrls,
+      idleUrl: idleUrls[0] ?? null,   // a client from before this change
     })
   }
 
@@ -168,9 +179,11 @@ export async function POST(req: Request) {
     })),
   )
 
+  const idleUrls = await idleAvatars()
   return NextResponse.json({
-      questions,
-      closingUrl: await closingAvatar(),
-      idleUrl: await idleAvatar(),
-    })
+    questions,
+    closingUrl: await closingAvatar(),
+    idleUrls,
+    idleUrl: idleUrls[0] ?? null,   // a client from before this change
+  })
 }

@@ -71,7 +71,7 @@ export async function funnel(): Promise<FunnelRow[]> {
 }
 
 export interface CohortRow {
-  source: string
+  cohort: string
   leads: number
   links_sent: number
   opened: number
@@ -82,14 +82,22 @@ export interface CohortRow {
 }
 
 /**
- * The same funnel split by lead source, which is the only cohort dimension
- * asked for. `links_sent` counts issued links, not messages delivered: we do
- * not know whether anything was actually delivered.
+ * The same funnel split by cohort.
+ *
+ * Falls back to `source` when a lead has no cohort, so the three test rows and
+ * anything created one at a time from the admin screen still appear rather than
+ * vanishing from the totals.
+ *
+ * The imported cohort names carry a numeric prefix ("1 Passed, slot not
+ * booked"), which is what puts them in funnel order rather than alphabetical.
+ *
+ * `links_sent` counts issued links, not messages delivered: nothing here knows
+ * whether anything actually reached anyone.
  */
 export async function cohorts(): Promise<CohortRow[]> {
   return await sql`
     select
-      coalesce(l.source, 'unknown') as source,
+      coalesce(l.cohort, l.source, 'Unassigned') as cohort,
       count(distinct l.id)::int as leads,
       count(distinct s.id)::int as links_sent,
       -- An attempts row is written when the link is opened, so it needs no
@@ -110,8 +118,8 @@ export async function cohorts(): Promise<CohortRow[]> {
     from leads l
     left join question_sets s on s.lead_id = l.id
     left join attempts a on a.set_id = s.id
-    group by coalesce(l.source, 'unknown')
-    order by leads desc
+    group by coalesce(l.cohort, l.source, 'Unassigned')
+    order by cohort asc
   ` as CohortRow[]
 }
 
@@ -121,6 +129,7 @@ export interface LeadRow {
   email: string
   phone10: string | null
   source: string | null
+  cohort: string | null
   city: string | null
   link_created: string | null
   attempt_id: string | null
@@ -146,7 +155,7 @@ export interface LeadRow {
 export async function leadRows(limit = 5000): Promise<LeadRow[]> {
   return await sql`
     select
-      l.id as lead_id, l.name, l.email, l.phone10, l.source, l.city,
+      l.id as lead_id, l.name, l.email, l.phone10, l.source, l.cohort, l.city,
       s.created_at as link_created,
       a.id as attempt_id, a.status, a.submitted_at, a.total_duration_sec,
       o.at   as opened_at,
@@ -191,6 +200,7 @@ export interface AnswerRow {
   lead_email: string
   phone10: string | null
   source: string | null
+  cohort: string | null
   attempt_id: string
   position: number
   question: string
@@ -203,7 +213,7 @@ export interface AnswerRow {
 export async function answerRows(limit = 20000): Promise<AnswerRow[]> {
   return await sql`
     select
-      l.name as lead_name, l.email as lead_email, l.phone10, l.source,
+      l.name as lead_name, l.email as lead_email, l.phone10, l.source, l.cohort,
       r.attempt_id, aq.position, q.content as question,
       r.duration_sec, r.uploaded_at, r.s3_url
     from recordings r
@@ -220,7 +230,7 @@ export async function answerRows(limit = 20000): Promise<AnswerRow[]> {
 export interface EventRow {
   at: string
   lead_email: string
-  source: string | null
+  cohort: string | null
   event: string
   position: number | null
   meta: Record<string, unknown> | null
@@ -229,7 +239,8 @@ export interface EventRow {
 /** Raw event log, newest first. The audit trail behind every other tab. */
 export async function eventRows(limit = 20000): Promise<EventRow[]> {
   return await sql`
-    select e.at, l.email as lead_email, l.source, e.event, e.position, e.meta
+    select e.at, l.email as lead_email, coalesce(l.cohort, l.source) as cohort,
+           e.event, e.position, e.meta
     from attempt_events e
     join leads l on l.id = e.lead_id
     order by e.at desc

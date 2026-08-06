@@ -9,10 +9,23 @@
 // sync, so the mouth stays closed, while Avatar IV's motion_prompt and
 // expressiveness still drive head and body movement. A real idle clip.
 //
-//   node scripts/make-idle-heygen.mjs
+//   node scripts/make-idle-heygen.mjs              render any missing variants
+//   node scripts/make-idle-heygen.mjs --only nod   just that one
+//   node scripts/make-idle-heygen.mjs --force      re-render everything
+//
+// Several variants exist because one clip on a loop reads as mechanical: the
+// same head turn every few seconds is more distracting than a still frame. The
+// client picks a different one per question, so the counsellor never repeats
+// the same movement twice in a row.
 //
 // Costs credits, unlike scripts/make-idle-clip.mjs which fakes it locally from
 // an existing render. Prefer this one when there is balance.
+//
+// EVERY CLIP IS RENDERED INACTIVE and cannot reach a student until somebody has
+// watched it and run scripts/approve-idle.mjs. This is not bureaucracy: a
+// motion prompt does not determine what the model produces, nothing in this
+// script can see the output, and a clip that shipped unwatched turned out to
+// look sexual. Assume a render is wrong until a human says otherwise.
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -54,28 +67,64 @@ const s3 = new S3Client({
   credentials: { accessKeyId: need('AWS_ACCESS_KEY_ID'), secretAccessKey: need('AWS_SECRET_ACCESS_KEY') },
 })
 
-const SECONDS = Number(env.IDLE_SECONDS ?? 8)
+/**
+ * The variants. Each becomes its own row in `questions`, keyed by
+ * position_group, and each gets a different length so two of them looping side
+ * by side never fall into step.
+ *
+ * None of these prompts mention the mouth or lips. An earlier version asked for
+ * "mouth closed and relaxed" and naming it appears to have invited the model to
+ * animate exactly that, which is what made the first clip unwatchable.
+ */
+const VARIANTS = [
+  {
+    key: 'idle',            // rendered, reviewed and approved. Do not re-render.
+    seconds: 8,
+    expressiveness: 'medium',
+    prompt:
+      'A man sitting calmly in an office, listening. He slowly turns his head to ' +
+      'his left, pauses, returns to centre, then turns slightly to his right. His ' +
+      'eyes follow, glancing left and right naturally. Shoulders relaxed and still. ' +
+      'Occasional slow blink. Calm, patient, friendly expression. Completely quiet ' +
+      'and attentive throughout.',
+  },
+  {
+    key: 'idle-nod',
+    seconds: 7,
+    expressiveness: 'low',
+    prompt:
+      'A man sitting upright and still, listening. He nods his head slowly and ' +
+      'gently, two or three small nods, then holds still. He blinks naturally. ' +
+      'Shoulders and body completely still. Calm and neutral. No other movement.',
+  },
+  {
+    key: 'idle-still',
+    seconds: 9,
+    expressiveness: 'low',
+    prompt:
+      'A man sitting upright and still, listening. He blinks naturally and makes ' +
+      'one very small, slow turn of the head, barely moving. Shoulders and body ' +
+      'completely still. Calm and neutral. No other movement.',
+  },
+]
 
-// Tunable without editing code, because judging these needs eyes on the result.
-//
-// expressiveness: 'high' was wrong for an idle clip. With no speech to drive,
-// high energy has nothing to animate except the face, which distorted the
-// mouth. 'medium' gives body movement without facial contortion.
-const EXPRESSIVENESS = env.IDLE_EXPRESSIVENESS ?? 'medium'
+// Per variant. 'high' was what distorted the first clip: with no speech to
+// drive, the energy lands on the face. 'low' is right for anything asking for
+// a nod and a blink and nothing else.
+const expressivenessFor = v => env.IDLE_EXPRESSIVENESS ?? v.expressiveness ?? 'medium'
 
-// Deliberately says nothing about the mouth or lips. The previous prompt asked
-// for "mouth closed and relaxed", and naming it appears to have invited the
-// model to animate it. Describe only head, gaze and shoulders.
-const MOTION = env.IDLE_MOTION_PROMPT ??
-  'A man sitting calmly in an office, listening. He slowly turns his head to ' +
-  'his left, pauses, returns to centre, then turns slightly to his right. His ' +
-  'eyes follow, glancing left and right naturally. Shoulders relaxed and still. ' +
-  'Occasional slow blink. Calm, patient, friendly expression. Completely quiet ' +
-  'and attentive throughout.'
+const args = process.argv.slice(2)
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null
+const force = args.includes('--force')
+
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const work = mkdtempSync(join(tmpdir(), 'idlehg-'))
 
-try {
+async function render(variant) {
+  const SECONDS = variant.seconds
+  const EXPRESSIVENESS = expressivenessFor(variant)
+  console.log(`\n── ${variant.key} · ${SECONDS}s · expressiveness ${EXPRESSIVENESS}`)
+
   // ── silent audio for the avatar to "lip-sync" ────────────────────────────
   const wav = join(work, 'silence.wav')
   execFileSync(ffmpegPath, [
@@ -102,9 +151,8 @@ try {
     resolution: '720p',           // it is a background loop; 1080p is waste
     engine: { type: 'avatar_iv' },
     expressiveness: EXPRESSIVENESS,
-    motion_prompt: MOTION,
+    motion_prompt: variant.prompt,
   }
-  console.log(`expressiveness: ${EXPRESSIVENESS}   ${SECONDS}s`)
 
   const res = await fetch(`${HEYGEN}/v3/videos`, {
     method: 'POST', headers: HEADERS, body: JSON.stringify(body),
@@ -112,7 +160,7 @@ try {
   const created = await res.json().catch(() => ({}))
   if (!res.ok || created.error) {
     console.error(`generate failed (${res.status}):`, JSON.stringify(created.error ?? created).slice(0, 400))
-    process.exit(1)
+    return
   }
   const videoId = created?.data?.video_id
   console.log(`rendering ${videoId} …`)
@@ -124,11 +172,11 @@ try {
     const d = (await st.json().catch(() => ({})))?.data ?? {}
     if (d.status === 'completed' || d.status === 'success') { downloadUrl = d.video_url ?? d.url; break }
     if (d.status === 'failed' || d.status === 'error') {
-      console.error('render failed:', JSON.stringify(d.error ?? d).slice(0, 400)); process.exit(1)
+      console.error('render failed:', JSON.stringify(d.error ?? d).slice(0, 400)); return
     }
     await sleep(10000)
   }
-  if (!downloadUrl) { console.error('render timed out'); process.exit(1) }
+  if (!downloadUrl) { console.error('render timed out'); return }
 
   const raw = join(work, 'idle-raw.mp4')
   writeFileSync(raw, Buffer.from(await (await fetch(downloadUrl)).arrayBuffer()))
@@ -151,12 +199,19 @@ try {
   console.log(`looped: ${(bytes.length / 1e3).toFixed(0)} KB, ${SECONDS * 2}s seamless`)
 
   // ── attach ───────────────────────────────────────────────────────────────
-  const idle = await sql`select id from questions where bank = 'idle' and active limit 1`
-  let idleId = idle[0]?.id
+  const existing = await sql`
+    -- No 'and active' here. Clips are rendered inactive by design, so filtering
+    -- on it made every re-render miss the existing row and insert a duplicate.
+    select id from questions
+    where bank = 'idle' and position_group = ${variant.key}
+    order by created_at asc limit 1`
+  let idleId = existing[0]?.id
   if (!idleId) {
     const made = await sql`
-      insert into questions (bank, position_group, sort_order, content, duration_sec)
-      values ('idle','idle',98,'(silent listening loop)',0) returning id`
+      insert into questions (bank, position_group, sort_order, content, duration_sec, active)
+      values ('idle', ${variant.key}, 98,
+              ${'(silent listening loop: ' + variant.key + ')'}, 0, false)
+      returning id`
     idleId = made[0].id
   }
 
@@ -168,9 +223,32 @@ try {
     CacheControl: 'public, max-age=31536000, immutable',
   }))
   const idleUrl = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${idleKey}`
-  await sql`update questions set avatar_url = ${idleUrl} where id = ${idleId}`
+  // Always back to inactive on render. A generated clip has not been watched
+  // by anyone, and nobody can tell from a prompt what the model actually made.
+  await sql`update questions
+              set avatar_url = ${idleUrl}, active = false
+            where id = ${idleId}`
 
-  console.log(`\nuploaded -> ${idleUrl}`)
+  console.log(`uploaded -> ${idleUrl}`)
+  console.log(`NOT LIVE. Watch it, then: node scripts/approve-idle.mjs ${variant.key}`)
+}
+
+try {
+  for (const variant of VARIANTS) {
+    if (only && variant.key !== only) continue
+
+    // Idempotent: a variant that already has a clip is skipped, so adding a
+    // fourth later costs one render rather than four.
+    if (!force) {
+      const done = await sql`
+        select 1 from questions
+        where bank = 'idle' and position_group = ${variant.key}
+          and avatar_url is not null limit 1`
+      if (done.length) { console.log(`\n── ${variant.key}: already rendered, skipping`); continue }
+    }
+
+    await render(variant)
+  }
 } finally {
   rmSync(work, { recursive: true, force: true })
 }

@@ -253,14 +253,14 @@ function buildFunnel(ss, funnel) {
 function buildStudents(ss, leads) {
   var sh = resetSheet(ss, TAB.students)
 
-  var header = ['Student', 'Email', 'Phone', 'Source', 'Link issued', 'Opened',
+  var header = ['Student', 'Email', 'Phone', 'Cohort', 'Link issued', 'Opened',
                 'Device', 'Answers', 'Furthest Q', 'Stopped at', 'Last seen',
                 'Status', 'Time taken']
   var rows = []
   for (var i = 0; i < leads.length; i++) {
     var d = leads[i]
     rows.push([
-      d.name, d.email, d.phone10 || '', labelSource(d.source),
+      d.name, d.email, d.phone10 || '', labelCohort(d.cohort || d.source),
       istDate(d.link_created),
       d.opened_at ? istDate(d.opened_at) : (d.attempt_id ? 'Yes' : 'Not opened'),
       d.device || '', d.answers, d.furthest_question || '',
@@ -290,6 +290,7 @@ function buildStudents(ss, leads) {
   sh.setConditionalFormatRules(rules)
 
   sh.setColumnWidth(2, 220)
+  sh.setColumnWidth(4, 230)
   sh.setColumnWidth(10, 190)
   sh.setFrozenRows(1)
   sh.setFrozenColumns(1)
@@ -299,14 +300,14 @@ function buildStudents(ss, leads) {
 function buildCohorts(ss, cohorts) {
   var sh = resetSheet(ss, TAB.cohorts)
 
-  var header = ['Source', 'Leads', 'Links issued', 'Opened', 'Started',
+  var header = ['Cohort', 'Leads', 'Links issued', 'Opened', 'Started',
                 'Allowed camera', 'Answered', 'Completed',
                 'Open rate', 'Completion (of opened)', 'Completion (of issued)']
   var rows = []
   for (var i = 0; i < cohorts.length; i++) {
     var c = cohorts[i]
     rows.push([
-      labelSource(c.source), c.leads, c.links_sent, c.opened, c.started,
+      labelCohort(c.cohort), c.leads, c.links_sent, c.opened, c.started,
       c.camera_ok, c.answered, c.completed,
       pct(c.opened, c.links_sent),
       pct(c.completed, c.opened),
@@ -320,7 +321,7 @@ function buildCohorts(ss, cohorts) {
 
   styleHeader(sh, header.length)
   sh.getRange(2, 2, rows.length, 7).setNumberFormat('#,##0')
-  sh.setColumnWidth(1, 160)
+  sh.setColumnWidth(1, 250)
   sh.setFrozenRows(1)
   sh.setFrozenColumns(1)
 }
@@ -378,13 +379,13 @@ function buildDelivery(ss) {
 function buildAnswers(ss, answers) {
   var sh = resetSheet(ss, TAB.answers)
 
-  var header = ['Student', 'Email', 'Phone', 'Source', 'Q#', 'Question',
+  var header = ['Student', 'Email', 'Phone', 'Cohort', 'Q#', 'Question',
                 'Length', 'Recorded at', 'Video']
   var rows = []
   for (var i = 0; i < answers.length; i++) {
     var a = answers[i]
     rows.push([
-      a.lead_name, a.lead_email, a.phone10 || '', labelSource(a.source),
+      a.lead_name, a.lead_email, a.phone10 || '', labelCohort(a.cohort || a.source),
       a.position || '', a.question,
       a.duration_sec ? mmss(a.duration_sec) : '',
       istDate(a.uploaded_at),
@@ -411,12 +412,12 @@ function buildAnswers(ss, answers) {
 function buildEvents(ss, events) {
   var sh = resetSheet(ss, TAB.events)
 
-  var header = ['When (IST)', 'Email', 'Source', 'Event', 'Q#', 'Detail']
+  var header = ['When (IST)', 'Email', 'Cohort', 'Event', 'Q#', 'Detail']
   var rows = []
   for (var i = 0; i < events.length; i++) {
     var e = events[i]
     rows.push([
-      istDate(e.at), e.lead_email, labelSource(e.source), e.event,
+      istDate(e.at), e.lead_email, labelCohort(e.cohort), e.event,
       e.position || '', e.meta ? JSON.stringify(e.meta) : '',
     ])
   }
@@ -495,13 +496,22 @@ function stageLabel(event) {
   return map[event] || event
 }
 
-function labelSource(source) {
-  if (!source) return 'Unknown'
+/**
+ * Cohort names arrive with a numeric prefix, "1 Passed, slot not booked", which
+ * is what orders them by funnel stage rather than alphabetically. Strip it for
+ * display and keep the ordering the query already applied.
+ *
+ * Also handles the old nsat/csat source values, for leads created one at a
+ * time from the admin screen rather than imported.
+ */
+function labelCohort(value) {
+  if (!value) return 'Unassigned'
   var map = {
     nsat1: 'NSAT R1', nsat2: 'NSAT R2', nsat3: 'NSAT R3', nsat4: 'NSAT R4',
-    csat: 'CSAT', unknown: 'Unknown',
+    csat: 'CSAT', unknown: 'Unassigned',
   }
-  return map[source] || source
+  if (map[value]) return map[value]
+  return String(value).replace(/^\s*\d+\s+/, '')
 }
 
 function orderTabs(ss) {
