@@ -2429,3 +2429,322 @@
 /* The corner tile is fixed now, so it is no longer interactive. */
 .callPip { cursor: default; }
 .callPip:active { transform: none; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   URGENCY: ticker, rotating proof card, demo loop
+
+   Added to the first screen only. The call itself stays clean: pressure on the
+   way in is persuasion, pressure while someone is recording an answer is just
+   noise they cannot act on.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.gateSplitWrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+/* The split filled the viewport on its own. With a ticker above it, it takes
+   the remainder instead, or the page grows a scrollbar it never had. */
+.gateSplitWrap .gateSplit {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── ticker ──────────────────────────────────────────────────────────────── */
+
+.ticker {
+  background: linear-gradient(90deg, #b45309 0%, #f59e0b 50%, #b45309 100%);
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 9px 0;
+  position: relative;
+  z-index: 5;
+  flex-shrink: 0;
+  box-shadow: 0 1px 12px rgba(180, 83, 9, 0.3);
+}
+
+.tickerTrack {
+  display: inline-flex;
+  /* Three copies at a third of the width each: the translate ends exactly
+     where the second copy began, so the reset is invisible. */
+  animation: tickerScroll 38s linear infinite;
+}
+
+.tickerItem {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-right: 64px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-33.333%); }
+}
+
+/* ── rotating proof card ─────────────────────────────────────────────────── */
+
+.proof {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 11px 14px;
+  max-width: 320px;
+  backdrop-filter: blur(6px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  position: relative;
+  z-index: 1;
+}
+.proofIn  { opacity: 1; transform: translateY(0); }
+.proofOut { opacity: 0; transform: translateY(6px); }
+
+.proofDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+  margin-top: 5px;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: proofPulse 2s ease-out infinite;
+}
+@keyframes proofPulse {
+  to { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+}
+
+.proofBody {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+}
+.proofBody strong { color: #fff; font-weight: 700; }
+.proofWhen { display: block; color: rgba(255, 255, 255, 0.5); font-size: 11.5px; }
+
+/* Shown only on narrow, where the dark panel that normally holds it is gone. */
+.proofMobile { display: none; }
+.proofMobile .proof {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  max-width: none;
+  margin-top: 18px;
+}
+.proofMobile .proofBody { color: #64748b; }
+.proofMobile .proofBody strong { color: #0d1b3e; }
+.proofMobile .proofWhen { color: #94a3b8; }
+
+/* ── the line under the logo ─────────────────────────────────────────────── */
+
+.gateEyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+.gateEyebrowPill {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ── silent demo loop ────────────────────────────────────────────────────── */
+/*
+   One 9 second cycle, every element driven off the same clock so they stay in
+   step: tap record (0-1s), recording (1-4s), tap stop (4-5s), next lights up
+   (5.5-8s), rest (8-9s). No JavaScript, so it cannot drift or leak a timer.
+*/
+
+.demo {
+  background: #0d1b3e;
+  border-radius: 12px;
+  padding: 18px 16px 14px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.demoBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.demoRec {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: demoRecPress 9s ease-in-out infinite;
+}
+@keyframes demoRecPress {
+  0%, 8%      { transform: scale(1); }
+  11%         { transform: scale(0.88); }
+  14%, 44%    { transform: scale(1); }
+  47%         { transform: scale(0.88); }
+  50%, 100%   { transform: scale(1); }
+}
+
+/* Circle while idle, square while recording: the same affordance the real
+   control uses, so the demo teaches the actual interface. */
+.demoRecInner {
+  width: 17px;
+  height: 17px;
+  background: #fff;
+  animation: demoRecShape 9s ease-in-out infinite;
+}
+@keyframes demoRecShape {
+  0%, 12%     { border-radius: 50%; width: 17px; height: 17px; }
+  15%, 47%    { border-radius: 3px; width: 15px; height: 15px; }
+  50%, 100%   { border-radius: 50%; width: 17px; height: 17px; }
+}
+
+/* The tap indicator: a ring that expands and fades, twice per cycle. */
+.demoTapRing,
+.demoTapRingNext {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  pointer-events: none;
+}
+.demoTapRing { animation: demoTap 9s ease-out infinite; }
+@keyframes demoTap {
+  0%, 6%    { opacity: 0; transform: scale(0.75); }
+  9%        { opacity: 1; transform: scale(0.9); }
+  16%       { opacity: 0; transform: scale(1.35); }
+  42%       { opacity: 0; transform: scale(0.75); }
+  45%       { opacity: 1; transform: scale(0.9); }
+  52%       { opacity: 0; transform: scale(1.35); }
+  100%      { opacity: 0; transform: scale(0.75); }
+}
+
+.demoTimer {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fca5a5;
+  min-width: 34px;
+  opacity: 0;
+  animation: demoTimerShow 9s ease-in-out infinite;
+}
+@keyframes demoTimerShow {
+  0%, 13%   { opacity: 0; }
+  16%, 46%  { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+/* Ticks 1 to 3 while "recording", so the timer looks alive rather than frozen. */
+.demoDigit::after {
+  content: '0';
+  animation: demoCount 9s steps(1) infinite;
+}
+@keyframes demoCount {
+  0%, 16%   { content: '1'; }
+  27%       { content: '2'; }
+  38%, 100% { content: '3'; }
+}
+
+.demoNext {
+  position: relative;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0d1b3e;
+  background: #fff;
+  border-radius: 999px;
+  padding: 9px 18px;
+  opacity: 0.3;
+  animation: demoNextWake 9s ease-in-out infinite;
+}
+@keyframes demoNextWake {
+  0%, 50%   { opacity: 0.3; transform: scale(1); }
+  58%       { opacity: 1; transform: scale(1); }
+  64%       { opacity: 1; transform: scale(0.94); }
+  70%, 88%  { opacity: 1; transform: scale(1); }
+  100%      { opacity: 0.3; transform: scale(1); }
+}
+.demoTapRingNext {
+  border-radius: 999px;
+  inset: -5px;
+  animation: demoTapNext 9s ease-out infinite;
+}
+@keyframes demoTapNext {
+  0%, 58%   { opacity: 0; transform: scale(0.85); }
+  63%       { opacity: 1; transform: scale(0.95); }
+  72%       { opacity: 0; transform: scale(1.2); }
+  100%      { opacity: 0; transform: scale(0.85); }
+}
+
+/* Three captions stacked in one slot, each fading in over its own step. */
+.demoCaptions {
+  position: relative;
+  height: 18px;
+  margin-top: 12px;
+  text-align: center;
+}
+.demoCaptions span {
+  position: absolute;
+  inset: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+}
+.demoCap1 { animation: demoCap1 9s ease-in-out infinite; }
+.demoCap2 { animation: demoCap2 9s ease-in-out infinite; }
+.demoCap3 { animation: demoCap3 9s ease-in-out infinite; }
+@keyframes demoCap1 { 0%, 4% { opacity: 0 } 8%, 30% { opacity: 1 } 36%, 100% { opacity: 0 } }
+@keyframes demoCap2 { 0%, 38% { opacity: 0 } 43%, 52% { opacity: 1 } 57%, 100% { opacity: 0 } }
+@keyframes demoCap3 { 0%, 58% { opacity: 0 } 63%, 86% { opacity: 1 } 92%, 100% { opacity: 0 } }
+
+/* Anyone who has asked the OS to stop animating gets a still frame in the
+   state that reads most clearly: ready to record. */
+@media (prefers-reduced-motion: reduce) {
+  .tickerTrack,
+  .demoRec, .demoRecInner, .demoTapRing, .demoTapRingNext,
+  .demoTimer, .demoDigit::after, .demoNext,
+  .demoCap1, .demoCap2, .demoCap3,
+  .proofDot {
+    animation: none;
+  }
+  .demoTimer { opacity: 0; }
+  .demoNext { opacity: 0.3; }
+  .demoCap1 { opacity: 1; }
+}
+
+/* ── narrow screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .proofMobile { display: block; }
+  .tickerItem { font-size: 11.5px; padding-right: 40px; }
+  .ticker { padding: 8px 0; }
+  .demoBar { gap: 12px; }
+  .gateEyebrow { font-size: 12px; }
+}
+
+@media (max-width: 380px) {
+  .tickerItem { font-size: 11px; }
+  .demoRec { width: 40px; height: 40px; }
+  .demoNext { padding: 8px 14px; font-size: 12px; }
+}

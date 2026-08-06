@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { AttemptQuestion } from '@/lib/questions'
+import type { EventName } from '@/lib/events'
+import { RECENT_ADMITS, TICKER_LINE } from '@/lib/socialProof'
 import styles from './flow.module.css'
 
 interface Props {
@@ -19,10 +21,128 @@ interface RecordingState {
   s3Url?: string
 }
 
+/**
+ * Log one funnel event. Fire and forget, by design.
+ *
+ * Never awaited on any path a lead can feel, never allowed to throw, and its
+ * response is ignored. An analytics ping must not be able to interrupt somebody
+ * recording an answer, so every failure mode here is silence.
+ *
+ * sendBeacon first, because several of these fire as the page is going away and
+ * a normal fetch gets cancelled when that happens. It also does not block the
+ * unload. Falls back to fetch with keepalive where sendBeacon is unavailable.
+ */
+function track(
+  event: EventName,
+  detail?: { questionId?: string; position?: number; meta?: Record<string, unknown> },
+) {
+  try {
+    const body = JSON.stringify({ event, ...detail })
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const ok = navigator.sendBeacon('/api/event', new Blob([body], { type: 'application/json' }))
+      if (ok) return
+    }
+    void fetch('/api/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    // Analytics is never worth an exception on the recording path.
+  }
+}
+
 function fmt(s: number) {
   if (!s || isNaN(s)) return '0:00'
   const m = Math.floor(s / 60), x = Math.floor(s % 60)
   return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0')
+}
+
+/**
+ * Urgency strip across the top of the first screen.
+ *
+ * Duplicated content plus a linear translate is the standard marquee trick: the
+ * second copy is what the eye sees while the first scrolls away, so the loop has
+ * no visible seam. aria-hidden on the duplicate stops a screen reader announcing
+ * the line twice.
+ */
+function UrgencyTicker() {
+  return (
+    <div className={styles.ticker} role="status">
+      <div className={styles.tickerTrack}>
+        <span className={styles.tickerItem}>{TICKER_LINE}</span>
+        <span className={styles.tickerItem} aria-hidden="true">{TICKER_LINE}</span>
+        <span className={styles.tickerItem} aria-hidden="true">{TICKER_LINE}</span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Rotating "someone just enrolled" card.
+ *
+ * Deliberately small and in the corner. It is meant to be noticed on the second
+ * glance, not to sit in front of the button the student came to press.
+ */
+function ProofCard() {
+  const [i, setI] = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    // Fade out, swap while invisible, fade back in. Swapping the text mid-fade
+    // is what stops it reading as a jump cut.
+    const id = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setI(prev => (prev + 1) % RECENT_ADMITS.length)
+        setVisible(true)
+      }, 420)
+    }, 4200)
+    return () => clearInterval(id)
+  }, [])
+
+  const admit = RECENT_ADMITS[i]
+  return (
+    <div className={`${styles.proof} ${visible ? styles.proofIn : styles.proofOut}`}>
+      <span className={styles.proofDot} />
+      <div className={styles.proofBody}>
+        <strong>{admit.name}</strong> from {admit.city}
+        <span className={styles.proofWhen}>{admit.when}</span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Silent demo of the two controls, looping on the setup screen.
+ *
+ * Runs before the call rather than during it, so nobody learns the interface on
+ * the same question they are being judged on. Pure CSS on a 9 second cycle:
+ * tap record, timer runs, tap stop, next lights up. No audio, nothing to skip,
+ * and it costs the student no time because it plays while they read.
+ */
+function DemoLoop() {
+  return (
+    <div className={styles.demo} aria-hidden="true">
+      <div className={styles.demoBar}>
+        <div className={styles.demoRec}>
+          <span className={styles.demoRecInner} />
+          <span className={styles.demoTapRing} />
+        </div>
+        <div className={styles.demoTimer}>0:0<span className={styles.demoDigit} /></div>
+        <div className={styles.demoNext}>
+          Next
+          <span className={styles.demoTapRingNext} />
+        </div>
+      </div>
+      <div className={styles.demoCaptions}>
+        <span className={styles.demoCap1}>Tap the red button to answer</span>
+        <span className={styles.demoCap2}>Tap again when you finish</span>
+        <span className={styles.demoCap3}>Then move to the next question</span>
+      </div>
+    </div>
+  )
 }
 
 function IconCamera() {
@@ -148,6 +268,25 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     }
   }, [stream])
 
+  const startedQuestions = useRef<Set<string>>(new Set())
+  const current = questions[idx]
+  useEffect(() => {
+    if (stage !== 'question' || !current) return
+    if (startedQuestions.current.has(current.questionId)) return
+    startedQuestions.current.add(current.questionId)
+    track('question_started', { questionId: current.questionId, position: idx + 1 })
+  }, [stage, current, idx])
+
+  // Fires once per page load. A ref guard rather than state, both because
+  // StrictMode double-invokes effects in development and because
+  // react-hooks/set-state-in-effect has already failed a build in this file.
+  const introLogged = useRef(false)
+  useEffect(() => {
+    if (introLogged.current) return
+    introLogged.current = true
+    track('intro_viewed')
+  }, [])
+
   // Session timer
   useEffect(() => {
     if (stage !== 'question') return
@@ -162,15 +301,23 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
 
   async function enableCamera() {
     setCamError('')
+    // The browser permission prompt is the single most likely place to lose a
+    // cold lead, and until now a denial was indistinguishable from someone who
+    // simply never read past the intro.
+    track('camera_requested')
     try {
       setStream(await navigator.mediaDevices.getUserMedia({ video: true, audio: true }))
+      track('camera_granted')
     } catch (e: unknown) {
-      setCamError(`Could not access camera: ${(e as Error).name}`)
+      const name = (e as Error).name
+      track('camera_denied', { meta: { reason: name } })
+      setCamError(`Could not access camera: ${name}`)
     }
   }
 
   async function begin() {
     setOverlayMsg('Loading your questions…')
+    let drawnCount = 0
     try {
       const res = await fetch('/api/attempt/begin', {
         method: 'POST',
@@ -179,6 +326,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       })
       const { questions: drawn, closingUrl: closing, idleUrl: idle, error } = await res.json()
       if (error) throw new Error(error)
+      drawnCount = (drawn as AttemptQuestion[]).length
       setQuestions(drawn as AttemptQuestion[])
       setClosingUrl(closing ?? null)
       setIdleUrl(idle ?? null)
@@ -188,6 +336,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       return
     }
     setOverlayMsg('')
+    track('wizard_completed', { meta: { questions: drawnCount } })
     setStage('question')
   }
 
@@ -222,6 +371,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     }
     recorder.start(5000)
     recorderRef.current = recorder
+    track('recording_started', { questionId, position: idx + 1 })
     setRecording(true)
     setElapsed(0)
     elapsedRef.current = 0
@@ -239,11 +389,19 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     const blob = new Blob(chunksRef.current, { type: 'video/webm' })
     const url = URL.createObjectURL(blob)
     const durationSec = elapsedRef.current
+    const position = questions.findIndex(q => q.questionId === questionId) + 1
+
+    track('recording_stopped', {
+      questionId, position,
+      meta: { durationSec, bytes: blob.size },
+    })
 
     setRecordings(prev => ({
       ...prev,
       [questionId]: { url, durationSec, uploadStatus: 'uploading' },
     }))
+
+    track('upload_started', { questionId, position, meta: { bytes: blob.size } })
 
     try {
       let presign = presignRef.current
@@ -281,11 +439,20 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
         body: JSON.stringify({ attemptId, questionId, s3Url: finalUrl, durationSec }),
       })
 
+      track('upload_succeeded', { questionId, position, meta: { durationSec } })
+
       setRecordings(prev => ({
         ...prev,
         [questionId]: { ...prev[questionId], uploadStatus: 'done', uploadProgress: 100, s3Url: finalUrl },
       }))
-    } catch {
+    } catch (e: unknown) {
+      // The error text is the valuable part. An upload that fails silently on a
+      // lead's phone is otherwise unknowable from here.
+      track('upload_failed', {
+        questionId, position,
+        meta: { error: (e as Error)?.message ?? 'unknown', bytes: blob.size },
+      })
+
       setRecordings(prev => ({
         ...prev,
         [questionId]: { ...prev[questionId], uploadStatus: 'error' },
@@ -337,7 +504,9 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   // ── WELCOME ──
   if (stage === 'welcome') {
     return (
-      <div className={styles.gateSplit}>
+      <div className={styles.gateSplitWrap}>
+        <UrgencyTicker />
+        <div className={styles.gateSplit}>
         <div className={styles.gateSplitLeft}>
           <div className={styles.gateSplitBrand}>
             <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateSplitLogo} />
@@ -371,21 +540,22 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           </div>
 
           <div className={styles.gateSplitFooter}>
-            <span className={styles.gateSplitStatus}>
-              <span className={styles.gateSplitDot} />
-              All systems operational
-            </span>
+            <ProofCard />
           </div>
         </div>
 
         <div className={styles.gateSplitRight}>
           <div className={styles.gateRightInner}>
             <img src="/sunstone-logo.svg" alt="Sunstone" className={styles.gateRightLogo} />
+            <div className={styles.gateEyebrow}>
+              <span className={styles.gateEyebrowPill}>6 minutes</span>
+              Finish your counselling now. Our team reviews it within 24 hours.
+            </div>
             <h2 className={styles.gateRightTitle}>Hi {leadName.split(' ')[0]}</h2>
             <p className={styles.gateRightSub}>
               Before we start, let us quickly check your camera and microphone.
             </p>
-            <button className={styles.gateGoogleBtn} onClick={() => setStage('ready')}>
+            <button className={styles.gateGoogleBtn} onClick={() => { track('intro_accepted'); setStage('ready') }}>
               Check setup →
             </button>
             <div className={styles.gateTrustRow}>
@@ -393,7 +563,14 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               <span className={styles.gateTrustItem}>🎥 Video recorded</span>
               <span className={styles.gateTrustItem}>🔒 Secure</span>
             </div>
+
+            {/* On a phone the dark left panel is hidden, so the proof card
+                would vanish with it. Repeated here, shown only on narrow. */}
+            <div className={styles.proofMobile}>
+              <ProofCard />
+            </div>
           </div>
+        </div>
         </div>
       </div>
     )
@@ -501,6 +678,12 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               <div className={styles.wizardIconWrap}><IconClipboard /></div>
               <h2 className={styles.wizardTitle}>You are all set</h2>
               <p className={styles.wizardDesc}>Have a quick read, then start when you are ready.</p>
+
+              {/* Plays while they read the list below, so learning the two
+                  controls costs no extra time and does not happen during a
+                  real question. */}
+              <DemoLoop />
+
               <div className={styles.wizardInstructions}>
                 {instRows.map((row, i) => (
                   <div key={i} className={styles.wizardInstRow}>
@@ -545,7 +728,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
               autoPlay
               playsInline
               style={closingDone && idleUrl ? { display: 'none' } : undefined}
-              onEnded={() => setClosingDone(true)}
+              onEnded={() => {
+                track('closing_played')
+                setClosingDone(true)
+              }}
             />
             {closingDone && idleUrl && (
               <video src={idleUrl} autoPlay loop muted playsInline />
@@ -629,7 +815,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             autoPlay
             playsInline
             style={showIdle ? { display: 'none' } : undefined}
-            onEnded={() => setAvatarDone(prev => ({ ...prev, [questionId]: true }))}
+            onEnded={() => {
+              track('question_heard', { questionId, position: idx + 1 })
+              setAvatarDone(prev => ({ ...prev, [questionId]: true }))
+            }}
           />
           {/* Muted: a repeating voice would be maddening. */}
           {showIdle && <video src={idleUrl!} autoPlay loop muted playsInline />}
