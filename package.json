@@ -12,8 +12,10 @@
     "@aws-sdk/client-s3": "^3.1075.0",
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@types/nodemailer": "^8.0.1",
     "next": "16.2.9",
     "next-auth": "^5.0.0-beta.32",
+    "nodemailer": "^8.0.11",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

@@ -1,6 +1,7 @@
 import { currentLead } from '@/lib/leadSession'
 import { ownedAttempt, submitAttempt } from '@/lib/db/leadAccess'
 import { logEvent } from '@/lib/events'
+import { sendCompletionEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   const lead = await currentLead()
@@ -25,6 +26,13 @@ export async function POST(request: Request) {
       event: 'attempt_submitted',
       meta: { totalDurationSec: totalDurationSec ?? null },
     })
+
+    // Awaited on purpose. A serverless function can be frozen the moment it
+    // responds, so a floating promise here would be killed mid-send often
+    // enough to matter. sendCompletionEmail never throws and claims the send
+    // in the database first, so the cost is a second or two on a request the
+    // student is not waiting on.
+    await sendCompletionEmail(attemptId)
   }
 
   return Response.json({ ok: true })
