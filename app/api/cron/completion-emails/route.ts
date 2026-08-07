@@ -18,8 +18,12 @@ import { sendCompletionEmail, smtpConfigured } from '@/lib/email'
  * laptop, and "was the email skipped, or did it fail?" was unanswerable. The
  * response says whether SMTP is configured on the server that ran it.
  *
- * GET is deliberate: Vercel Cron only issues GET, and it carries the project's
- * CRON_SECRET as a bearer token.
+ * GET is deliberate, and it takes the secret as a bearer token or a ?key=.
+ *
+ * NOT driven by vercel.json. A cron more frequent than daily fails the whole
+ * deployment on Vercel's Hobby plan, which is what silently stopped a build
+ * from ever appearing. The analytics sheet already runs every fifteen minutes
+ * and calls this instead, which works on any plan.
  */
 
 export const dynamic = 'force-dynamic'
