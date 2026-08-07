@@ -2895,3 +2895,27 @@
   composes: callHint;
   color: #fde68a;
 }
+
+/* Shown only when the browser refuses to play the counsellor clip. */
+.callTapPlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(13, 27, 62, 0.92);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  z-index: 4;
+}
+.callTapPlay:active { transform: translate(-50%, -50%) scale(0.96); }

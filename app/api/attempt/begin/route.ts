@@ -25,9 +25,19 @@ const toQuestion = (r: QuestionRow): Question => ({
   durationSec: r.duration_sec,
 })
 
-/** Swap the stored S3 URL for a short-lived signed playback URL. */
+/**
+ * Playback URL for a counsellor clip.
+ *
+ * A path beginning with / is served by the app itself, out of public/, which
+ * means Vercel's edge and a cacheable URL. Those are returned untouched:
+ * signing them would defeat the point, since a signed URL is unique per request
+ * and can never be cached by a browser or a CDN.
+ *
+ * Anything still in S3 is signed as before, so an unmigrated clip keeps working.
+ */
 async function signAvatar(url: string | null): Promise<string | null> {
   if (!url) return null
+  if (url.startsWith('/')) return url
   const key = url.split('.amazonaws.com/')[1]
   return key ? getS3SignedUrl(key, 3600) : url
 }

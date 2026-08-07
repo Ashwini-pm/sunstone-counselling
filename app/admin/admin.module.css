@@ -776,3 +776,12 @@
   border-color: #0d1b3e;
   box-shadow: 0 0 0 3px rgba(13, 27, 62, 0.08);
 }
+
+/* Which page you are on. Without it the arrows give no sense of position. */
+.pageOf {
+  font-size: 12px;
+  color: #64748b;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+.pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }

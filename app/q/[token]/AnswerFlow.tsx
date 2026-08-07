@@ -177,6 +177,8 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const [camError, setCamError] = useState('')
   // True when the camera was refused and we fell back to recording audio.
   const [audioOnly, setAudioOnly] = useState(false)
+  // Set when the browser refuses to autoplay the counsellor clip. See below.
+  const [playBlocked, setPlayBlocked] = useState(false)
   const [overlayMsg, setOverlayMsg] = useState('')
 
   // Which questions have finished playing their avatar video. Recording stays
@@ -202,6 +204,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const animFrameRef = useRef<number | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const clipRef = useRef<HTMLVideoElement>(null)
   const camPreviewRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -779,7 +782,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const rec = recordings[questionId]
   const uploadStatus = rec?.uploadStatus
   const last = idx === questions.length - 1
-  const heard = !!avatarDone[questionId] || !question.avatarUrl
+  // Recording unlocks when the clip ends, when there is no clip, or when the
+  // clip could not be played at all. Without that last case a refused autoplay
+  // leaves the student with a frozen counsellor and a dead record button.
+  const heard = !!avatarDone[questionId] || !question.avatarUrl || playBlocked
   // A question whose video has not been generated has nothing to watch, so the
   // lead takes the main tile and the counsellor tile is not rendered at all.
   const hasAvatar = !!question.avatarUrl
@@ -815,11 +821,23 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           {/* Hidden rather than unmounted once the idle loop takes over, so
               the browser does not discard a clip it has already fetched. */}
           <video
+            ref={clipRef}
             key={questionId}
             src={question.avatarUrl!}
             autoPlay
             playsInline
             style={showIdle ? { display: 'none' } : undefined}
+            onPlay={() => setPlayBlocked(false)}
+            // A browser only permits video WITH SOUND inside a user gesture.
+            // begin() awaits the permission prompt before showing the call, and
+            // that await ends the gesture, so autoPlay alone is refused: the
+            // counsellor sits frozen, question_heard never fires, and there is
+            // no way forward. Ask explicitly, and if it is still refused, say
+            // so and let them tap.
+            onCanPlay={e => {
+              const v = e.currentTarget
+              v.play().catch(() => setPlayBlocked(true))
+            }}
             onEnded={() => {
               track('question_heard', { questionId, position: idx + 1 })
               setAvatarDone(prev => ({ ...prev, [questionId]: true }))
@@ -831,6 +849,17 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           />
           {/* Muted: a repeating voice would be maddening. */}
           {showIdle && <video src={idleUrl!} autoPlay loop muted playsInline />}
+
+          {playBlocked && !clipEnded && (
+            <button
+              className={styles.callTapPlay}
+              onClick={() => {
+                clipRef.current?.play().then(() => setPlayBlocked(false)).catch(() => {})
+              }}
+            >
+              ▶ Tap to hear the question
+            </button>
+          )}
 
         </div>
       )}
@@ -932,7 +961,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       {!recording && !rec && stream && (
         <div className={styles.callHint}>
           {!hasAvatar
-            ? 'Read the question, then tap the red button to answer'
+            ? 'Tap the red button to record your question, or carry on'
             : heard ? 'Recording starts automatically. Tap Next when you finish.' : 'Listen to the question…'}
         </div>
       )}
@@ -978,10 +1007,21 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
           </button>
         )}
 
-        {/* Enabled while recording too: Next is now how you finish an answer.
-            next() stops the recorder, and the upload continues in the
-            background while the following question plays. */}
-        <button className={styles.callBtnNext} onClick={next} disabled={!answered && !recording}>
+        {/* Enabled while recording too: Next is how you finish an answer.
+            next() stops the recorder and the upload continues in the background
+            while the following question plays.
+
+            A question with no clip is optional, and station six is one: it asks
+            whether the student has anything to ask US. Left gated on a
+            recording it would strand anyone with no questions on the final
+            screen, unable to submit, because Next is Finish there. The label
+            stays plain: "No questions, finish" put words in their mouth before
+            they had decided. */}
+        <button
+          className={styles.callBtnNext}
+          onClick={next}
+          disabled={!answered && !recording && hasAvatar}
+        >
           {last ? 'Finish' : 'Next'} →
         </button>
       </div>

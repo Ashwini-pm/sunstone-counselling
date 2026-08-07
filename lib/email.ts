@@ -51,6 +51,11 @@ function transporter(): Transporter | null {
  *
  * Never throws.
  */
+/** Whether mail is configured here. Reported by the cron route for diagnosis. */
+export function smtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+}
+
 export async function sendCompletionEmail(attemptId: string): Promise<void> {
   try {
     const tx = transporter()
@@ -92,11 +97,17 @@ export async function sendCompletionEmail(attemptId: string): Promise<void> {
 
     console.log('[email] completion email sent to', lead.email)
   } catch (err) {
-    // Release the claim so a retry can pick it up, then swallow. A mail fault
-    // must never reach the student who just finished recording.
+    // Release the claim so a retry can pick it up, and record why. Clearing the
+    // timestamp alone left a failure looking identical to a send that never
+    // happened, which is how one student's missing email went unexplained.
     console.error('[email] completion email failed', err)
     try {
-      await sql`update attempts set completion_email_sent_at = null where id = ${attemptId}`
+      await sql`
+        update attempts
+           set completion_email_sent_at = null,
+               completion_email_attempts = completion_email_attempts + 1,
+               completion_email_error = ${String((err as Error)?.message ?? err).slice(0, 400)}
+         where id = ${attemptId}`
     } catch { /* nothing sensible left to do */ }
   }
 }

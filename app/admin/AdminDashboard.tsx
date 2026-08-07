@@ -44,6 +44,7 @@ export default function AdminDashboard({
   const [activeTab, setActiveTab] = useState<string>('all')
   // The three cards double as a status filter. 'sent' means no filter.
   const [statusFilter, setStatusFilter] = useState<'sent' | 'completed' | 'in_progress'>('sent')
+  const [page, setPage] = useState(0)
 
   // Built from the data. Hardcoding NSAT 1-4 / CSAT left every tab empty once
   // leads started arriving with a cohort and no source.
@@ -52,6 +53,10 @@ export default function AdminDashboard({
     [cohorts],
   )
   const groupOf = (s: AdminSetRow) => s.lead_cohort ?? s.lead_source ?? 'unassigned'
+
+  // The pager buttons existed as markup with no handler, and the table rendered
+  // every matching row: 850 <tr> elements on the largest cohort.
+  const PAGE_SIZE = 50
   const [leadName, setLeadName] = useState('')
   const [leadEmail, setLeadEmail] = useState('')
   const [leadPhone, setLeadPhone] = useState('')
@@ -111,6 +116,16 @@ export default function AdminDashboard({
     })
   }, [recentSets, activeTab, statusFilter, dateFrom, dateTo])
 
+  const pageCount = Math.max(1, Math.ceil(filteredSets.length / PAGE_SIZE))
+  // Clamp rather than reset. Narrowing a filter while on page 12 would
+  // otherwise show an empty table with no clue why.
+  const safePage = Math.min(page, pageCount - 1)
+  const pageRows = useMemo(
+    () => filteredSets.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
+    [filteredSets, safePage],
+  )
+  const goTo = (p: number) => setPage(Math.max(0, Math.min(p, pageCount - 1)))
+
 
   // Counted by the database, not by looping the list below. That list is
   // capped at 200 rows, so deriving totals from it made "Links Sent" report
@@ -151,7 +166,7 @@ export default function AdminDashboard({
               <button
                 key={t.key}
                 className={`${styles.pageTab} ${activeTab === t.key ? styles.pageTabActive : ''}`}
-                onClick={() => setActiveTab(t.key)}
+                onClick={() => { setActiveTab(t.key); setPage(0) }}
                 style={badge > 0 ? { paddingRight: 22 } : undefined}
               >
                 {t.key === 'all' ? 'All Leads' : groupLabel(t.key)}
@@ -182,7 +197,7 @@ export default function AdminDashboard({
             <button
               key={card.key}
               type="button"
-              onClick={() => setStatusFilter(card.key)}
+              onClick={() => { setStatusFilter(card.key); setPage(0) }}
               aria-pressed={statusFilter === card.key}
               className={[
                 styles.statCard,
@@ -300,9 +315,9 @@ export default function AdminDashboard({
             <div className={styles.tableActions}>
               <div className={styles.dateFilters}>
                 <span className={styles.calIcon}>📅</span>
-                <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(0) }} />
                 <span className={styles.dateSep}>—</span>
-                <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                <input type="date" className={styles.dateInput} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(0) }} />
               </div>
               <button className={styles.csvBtn} onClick={downloadCSV}>↓ Download CSV</button>
             </div>
@@ -325,7 +340,7 @@ export default function AdminDashboard({
                 <tbody>
                   {filteredSets.length === 0 ? (
                     <tr><td colSpan={7} className={styles.emptyRow}>No leads found</td></tr>
-                  ) : filteredSets.map(s => {
+                  ) : pageRows.map(s => {
                     const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/q/${s.access_token}`
                     return (
                       <tr key={s.id}>
@@ -375,15 +390,29 @@ export default function AdminDashboard({
             </div>
             <div className={styles.tableFooter}>
               <span className={styles.tableFooterText}>
-                Showing {filteredSets.length} of{' '}
-                {(statusFilter === 'completed' ? stats.completed
-                  : statusFilter === 'in_progress' ? stats.in_progress
-                  : stats.sent).toLocaleString('en-IN')} link
-                {stats.sent !== 1 ? 's' : ''}{recentSets.length >= 5000 ? ' (first 5,000 loaded)' : ''}
+                {filteredSets.length === 0
+                  ? 'No leads match this view'
+                  : `Showing ${safePage * PAGE_SIZE + 1} to ` +
+                    `${Math.min((safePage + 1) * PAGE_SIZE, filteredSets.length)} of ` +
+                    `${filteredSets.length.toLocaleString('en-IN')}`}
+                {recentSets.length >= 5000 ? ' (first 5,000 loaded)' : ''}
               </span>
               <div className={styles.paginationBtns}>
-                <button className={styles.pageBtn} disabled>‹</button>
-                <button className={styles.pageBtn}>›</button>
+                <span className={styles.pageOf}>
+                  Page {safePage + 1} of {pageCount}
+                </span>
+                <button
+                  className={styles.pageBtn}
+                  onClick={() => goTo(safePage - 1)}
+                  disabled={safePage === 0}
+                  aria-label="Previous page"
+                >‹</button>
+                <button
+                  className={styles.pageBtn}
+                  onClick={() => goTo(safePage + 1)}
+                  disabled={safePage >= pageCount - 1}
+                  aria-label="Next page"
+                >›</button>
               </div>
             </div>
           </div>

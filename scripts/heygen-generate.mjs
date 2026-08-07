@@ -156,6 +156,10 @@ const limitArg = process.argv.indexOf('--limit')
 const limit = limitArg > -1 ? parseInt(process.argv[limitArg + 1]) || 0 : 0
 // --bank idle  targets one bank; without it --limit picks by sort_order and can
 // grab the wrong row entirely.
+// Render something before it is live. A question inserted inactive can be
+// watched and approved first, which is how the idle clips work and why the one
+// that shipped unwatched was a problem.
+const includeInactive = process.argv.includes('--include-inactive')
 const bankArg = process.argv.indexOf('--bank')
 const bankFilter = bankArg > -1 ? process.argv[bankArg + 1] : null
 
@@ -168,12 +172,13 @@ try {
     ? await sql`
         select id, bank, position_group, sort_order, content
         from questions
-        where avatar_url is null and active and bank = ${bankFilter}
+        where avatar_url is null and bank = ${bankFilter}
+          and (active or ${includeInactive})
         order by sort_order asc`
     : await sql`
         select id, bank, position_group, sort_order, content
         from questions
-        where avatar_url is null and active
+        where avatar_url is null and (active or ${includeInactive})
         order by sort_order asc`
 
   const queue = limit ? pending.slice(0, limit) : pending
