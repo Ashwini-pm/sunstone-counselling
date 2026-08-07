@@ -239,6 +239,8 @@ export interface AnswerRow {
   duration_sec: number | null
   uploaded_at: string
   s3_url: string
+  transcript: string | null
+  transcript_status: string
 }
 
 /** Every recorded answer, for the per-student recordings tab. */
@@ -247,7 +249,8 @@ export async function answerRows(limit = 20000): Promise<AnswerRow[]> {
     select
       l.name as lead_name, l.email as lead_email, l.phone10, l.source, l.cohort,
       r.attempt_id, aq.position, q.content as question,
-      r.duration_sec, r.uploaded_at, r.s3_url
+      r.duration_sec, r.uploaded_at, r.s3_url,
+      r.transcript, r.transcript_status
     from recordings r
     join attempts a on a.id = r.attempt_id
     join leads l on l.id = a.lead_id

@@ -23,6 +23,7 @@
 var PROP_URL = 'ANALYTICS_BASE_URL'
 var PROP_KEY = 'ANALYTICS_API_KEY'
 var PROP_SHEET = 'ANALYTICS_SHEET_ID'
+var PROP_CRON = 'CRON_SECRET'
 
 var TAB = {
   summary: 'Summary',
@@ -74,6 +75,14 @@ function setup() {
   props.setProperty(PROP_KEY, keyAnswer.getResponseText().trim())
   props.setProperty(PROP_SHEET, SpreadsheetApp.getActiveSpreadsheet().getId())
 
+  var cron = ui.prompt('CRON_SECRET',
+    'From the app environment. Lets this sheet run the background jobs:\n' +
+    'sending completion emails and transcribing answers.',
+    ui.ButtonSet.OK_CANCEL)
+  if (cron.getSelectedButton() === ui.Button.OK) {
+    props.setProperty(PROP_CRON, cron.getResponseText().trim())
+  }
+
   installTrigger()
   refreshAll()
   ui.alert('Connected. Tabs built and a 15-minute refresh is installed.')
@@ -88,6 +97,31 @@ function removeTriggers() {
   var all = ScriptApp.getProjectTriggers()
   for (var i = 0; i < all.length; i++) {
     if (all[i].getHandlerFunction() === 'refreshAll') ScriptApp.deleteTrigger(all[i])
+  }
+}
+
+/**
+ * Poke one of the app's background endpoints.
+ *
+ * Never allowed to stop a refresh: if a sweeper is unreachable the numbers on
+ * the tabs are still worth having, and the failure belongs in the log rather
+ * than in front of whoever opened the sheet.
+ */
+function runSweeper(name) {
+  var props = PropertiesService.getScriptProperties()
+  var base = props.getProperty(PROP_URL)
+  var secret = props.getProperty(PROP_CRON)
+  if (!base || !secret) return
+
+  try {
+    var res = UrlFetchApp.fetch(base + '/api/cron/' + name, {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + secret },
+      muteHttpExceptions: true,
+    })
+    Logger.log(name + ': ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 240))
+  } catch (e) {
+    Logger.log(name + ' failed: ' + e)
   }
 }
 
@@ -138,6 +172,13 @@ function fetchPart(part) {
  */
 function refreshAll() {
   Logger.log('refreshAll starting')
+
+  // Vercel's Hobby plan rejects any cron more frequent than daily, and doing so
+  // fails the entire deployment. This trigger already runs every fifteen
+  // minutes, so it drives the background work instead.
+  runSweeper('completion-emails')
+  runSweeper('transcribe')
+
   var ss = book()
   var stamp = new Date()
 
@@ -417,7 +458,7 @@ function buildAnswers(ss, answers) {
   var sh = resetSheet(ss, TAB.answers)
 
   var header = ['Student', 'Email', 'Phone', 'Cohort', 'Q#', 'Question',
-                'Length', 'Recorded at', 'Video']
+                'Length', 'Recorded at', 'Video', 'Transcript']
   var rows = []
   for (var i = 0; i < answers.length; i++) {
     var a = answers[i]
@@ -427,16 +468,19 @@ function buildAnswers(ss, answers) {
       a.duration_sec ? mmss(a.duration_sec) : '',
       istDate(a.uploaded_at),
       a.playUrl ? '=HYPERLINK("' + a.playUrl + '","▶ Watch")' : '',
+      a.transcript || (a.transcript_status === 'done' ? '' : '(' + (a.transcript_status || 'pending') + ')'),
     ])
   }
-  if (!rows.length) rows.push(['No recordings yet', '', '', '', '', '', '', '', ''])
+  if (!rows.length) rows.push(['No recordings yet', '', '', '', '', '', '', '', '', ''])
 
   sh.getRange(1, 1, 1, header.length).setValues([header])
   sh.getRange(2, 1, rows.length, header.length).setValues(rows)
 
   styleHeader(sh, header.length)
   sh.getRange(2, 6, rows.length, 1).setWrap(true)
-  sh.setColumnWidth(6, 380)
+  sh.getRange(2, 10, rows.length, 1).setWrap(true).setVerticalAlignment('top')
+  sh.setColumnWidth(6, 300)
+  sh.setColumnWidth(10, 460)
   sh.setColumnWidth(2, 220)
   sh.setFrozenRows(1)
 
