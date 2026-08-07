@@ -550,8 +550,13 @@ function buildMaster(ss, leads, answers) {
     'Saw intro', 'Started', 'Camera asked', 'Camera allowed', 'Camera blocked',
     'Mic not heard', 'Entered call',
     'Answers', 'Furthest Q', 'Stopped at', 'Last seen', 'Time taken', 'Status',
+    'Intent',
   ]
   for (var q = 1; q <= maxQ; q++) header.push('Q' + q)
+  // What they actually said, all of it, in one cell per student. The per-answer
+  // text lives on Recordings; this is the version a counsellor reads before
+  // picking up the phone.
+  header.push('What they said')
 
   var tick = function (v) { return v ? '✓' : '' }
   var rows = []
@@ -574,6 +579,9 @@ function buildMaster(ss, leads, answers) {
       d.total_duration_sec ? mmss(d.total_duration_sec) : '',
       d.status === 'submitted' ? 'Completed'
         : d.attempt_id ? 'Dropped off' : 'Never opened',
+      // Blank rather than 0 when unjudged: an empty cell reads as "not known",
+      // a zero reads as "no intent", and they are not the same claim.
+      d.intent === 1 ? 1 : d.intent === 0 ? 0 : '',
     ]
 
     var mine = byAttempt[d.attempt_id] || {}
@@ -583,6 +591,16 @@ function buildMaster(ss, leads, answers) {
         ? '=HYPERLINK("' + ans.playUrl + '","▶ ' + (ans.duration_sec || '?') + 's")'
         : '')
     }
+
+    // Stitched in question order and labelled, because a wall of five
+    // paragraphs with no idea which question each answered is unreadable.
+    var said = []
+    for (var t = 1; t <= maxQ; t++) {
+      var a2 = mine[t]
+      if (a2 && a2.transcript) said.push('Q' + t + ': ' + a2.transcript)
+    }
+    row.push(said.join('\n\n'))
+
     rows.push(row)
   }
   if (!rows.length) rows.push(header.map(function () { return '' }))
@@ -593,6 +611,7 @@ function buildMaster(ss, leads, answers) {
   styleHeader(sh, header.length)
 
   var statusCol = sh.getRange(2, 23, rows.length, 1)
+  var intentCol = sh.getRange(2, 24, rows.length, 1)
   sh.setConditionalFormatRules([
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Completed')
       .setBackground('#dcfce7').setRanges([statusCol]).build(),
@@ -600,7 +619,27 @@ function buildMaster(ss, leads, answers) {
       .setBackground('#fee2e2').setRanges([statusCol]).build(),
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Never opened')
       .setBackground('#f1f5f9').setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberEqualTo(1)
+      .setBackground('#dcfce7').setBold(true).setRanges([intentCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenNumberEqualTo(0)
+      .setBackground('#fee2e2').setRanges([intentCol]).build(),
   ])
+  sh.getRange(2, 24, rows.length, 1).setHorizontalAlignment('center')
+
+  // The reason behind each 1 or 0, as a cell note. Not a column, because you
+  // asked for a status; but a bare verdict nobody can check is worse than no
+  // verdict, so hover to see why it decided what it decided.
+  for (var ri = 0; ri < leads.length; ri++) {
+    if (leads[ri].intent_reason) {
+      sh.getRange(ri + 2, 24).setNote(leads[ri].intent_reason)
+    }
+  }
+
+  // The transcript column: wide, wrapped, top aligned, and last so it never
+  // pushes the columns you scan against each other.
+  var tcol = header.length
+  sh.setColumnWidth(tcol, 520)
+  sh.getRange(2, tcol, rows.length, 1).setWrap(true).setVerticalAlignment('top').setFontSize(10)
 
   // The tick block reads as a path across the page when it is narrow.
   sh.getRange(2, 11, rows.length, 7).setHorizontalAlignment('center')

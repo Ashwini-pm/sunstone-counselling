@@ -145,6 +145,8 @@ export interface LeadRow {
   furthest_question: number | null
   submitted_at: string | null
   total_duration_sec: number | null
+  intent: number | null
+  intent_reason: string | null
   // Per-stage flags, so the master sheet can show a tick per column rather
   // than making the reader infer the path from a single "stopped at" value.
   ev_intro: boolean
@@ -171,6 +173,7 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
       s.access_token,
       s.created_at as link_created,
       a.id as attempt_id, a.status, a.submitted_at, a.total_duration_sec,
+      a.intent, a.intent_reason,
       o.at   as opened_at,
       o.meta ->> 'device'  as device,
       o.meta ->> 'browser' as browser,

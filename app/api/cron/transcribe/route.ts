@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db'
 import { transcribeRecording, transcriptionConfigured } from '@/lib/transcribe'
+import { judgeIntent } from '@/lib/intent'
 
 /**
  * Transcribe whatever is still waiting.
@@ -90,6 +91,30 @@ export async function GET(request: Request) {
     from recordings where id = any(${pending.map(p => p.id)})
   ` as { done: number; skipped: number; failed: number }[]
 
+  // Intent, once a finished student has transcripts to judge. Same run rather
+  // than a second endpoint: it depends on transcription having happened, so
+  // sequencing them here means it can never race ahead of the text it reads.
+  const unjudged = await sql`
+    select a.id from attempts a
+    where a.status = 'submitted'
+      and a.intent is null
+      and a.intent_attempts < 3
+      and exists (select 1 from recordings r
+                  where r.attempt_id = a.id and r.transcript is not null)
+    order by a.submitted_at desc
+    limit 5
+  ` as { id: string }[]
+
+  for (const a of unjudged) await judgeIntent(a.id)
+
+  const intentState = await sql`
+    select
+      count(*) filter (where intent = 1)::int as intent_yes,
+      count(*) filter (where intent = 0)::int as intent_no,
+      count(*) filter (where status = 'submitted' and intent is null)::int as intent_pending
+    from attempts
+  ` as { intent_yes: number; intent_no: number; intent_pending: number }[]
+
   const lastError = await sql`
     select transcript_error from recordings
     where transcript_status = 'failed' and transcript_error is not null
@@ -102,6 +127,8 @@ export async function GET(request: Request) {
     considered: pending.length,
     ...after[0],
     queue: queue[0],
+    intentJudged: unjudged.length,
+    intent: intentState[0],
     lastError: lastError[0]?.transcript_error ?? null,
   })
 }
