@@ -150,7 +150,17 @@ export default function AnswerReview(props: Props) {
 
                 <div className={styles.videoArea}>
                   {active.videoUrl
-                    ? <video key={active.questionId} src={active.videoUrl} controls playsInline style={{ width: '100%', borderRadius: 12, background: '#000' }} />
+                    ? (
+                      <div className={styles.answerStage}>
+                        <video
+                          key={active.questionId}
+                          src={active.videoUrl}
+                          controls
+                          playsInline
+                          className={styles.answerPlayer}
+                        />
+                      </div>
+                    )
                     : <div className={styles.noVideo}>No recording for this question</div>
                   }
                 </div>
