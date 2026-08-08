@@ -49,7 +49,38 @@ function instruction(): string {
   ].join(' ')
 }
 
-async function callGemini(bytes: ArrayBuffer, mime: string): Promise<string> {
+/**
+ * Does this read like a degenerate repetition loop rather than speech?
+ *
+ * Models fall into these when asked to transcribe audio they cannot get
+ * purchase on, and the output is confident, well formed and entirely invented.
+ * A three second clip came back with 1,364 words, and a fifteen second one with
+ * 262 sentences of which 5 were unique. Stored unchecked, that then fed the
+ * intent judgement.
+ *
+ * Two independent tests, because either alone has blind spots: a rate no mouth
+ * can produce, and a handful of sentences repeated endlessly.
+ */
+function looksLikeLoop(text: string, durationSec: number): string | null {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return null
+
+  // Fast speech in any language tops out near 4 words a second. 6 is generous.
+  if (durationSec > 0 && words.length / durationSec > 6) {
+    return `${words.length} words in ${durationSec}s is not physically possible`
+  }
+
+  const sentences = text.split(/[.!?\n]+/).map(x => x.trim().toLowerCase()).filter(Boolean)
+  if (sentences.length >= 8) {
+    const unique = new Set(sentences).size
+    if (unique / sentences.length < 0.35) {
+      return `${unique} unique sentences out of ${sentences.length}`
+    }
+  }
+  return null
+}
+
+async function callGemini(bytes: ArrayBuffer, mime: string, durationSec: number): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY is not set')
 
@@ -66,7 +97,10 @@ async function callGemini(bytes: ArrayBuffer, mime: string): Promise<string> {
       generationConfig: {
         // Transcription is not a creative task; drift here is invention.
         temperature: 0,
-        maxOutputTokens: 2048,
+        // Scaled to the clip. A flat 2,048 gave a three second answer room to
+        // produce 1,364 words. Roughly 4 words a second at ~2 tokens a word,
+        // with headroom, and a floor so a short clip is never clipped mid-word.
+        maxOutputTokens: Math.min(2048, Math.max(120, Math.ceil(durationSec * 12))),
       },
     }),
   })
@@ -145,7 +179,14 @@ export async function transcribeRecording(recordingId: string): Promise<void> {
     // frames against 3,840 on speech, cost twenty times more, and returned four
     // words for a two minute answer. There is nothing to read in a webcam clip
     // of someone talking.
-    const text = await callGemini(bytes, 'audio/webm')
+    const text = await callGemini(bytes, 'audio/webm', duration_sec ?? 0)
+
+    // Reject a loop rather than store it. Marked failed, not skipped, so it is
+    // retried: these are usually not reproducible, and a second pass on the
+    // same audio normally returns real speech.
+    const loop = looksLikeLoop(text, duration_sec ?? 0)
+    if (loop) throw new Error(`transcript looks like a repetition loop (${loop})`)
+
     const empty = !text || text === '[no speech]'
 
     await sql`
