@@ -43,19 +43,45 @@ var WARN_BG = '#fef3c7'    // the "we do not have this data" band
 
 // ── menu ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Build the Sunstone menu when the sheet is opened.
+ *
+ * Wrapped, because getUi() throws outright in any context without a user
+ * interface: an installable trigger firing this, a run from the editor, or the
+ * sheet being opened by another script. There is no menu to add in those cases
+ * and nothing has gone wrong, but unguarded it logs an error every time.
+ */
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('Sunstone')
-    .addItem('Refresh now', 'refreshAll')
-    .addSeparator()
-    .addItem('Set API URL and key', 'setup')
-    .addItem('Install 15-minute refresh', 'installTrigger')
-    .addItem('Remove auto refresh', 'removeTriggers')
-    .addToUi()
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu('Sunstone')
+      .addItem('Refresh now', 'refreshAll')
+      .addSeparator()
+      .addItem('Set API URL and key', 'setup')
+      .addItem('Set WhatsApp campaign', 'setupWhatsApp')
+      .addItem('Test WhatsApp connection', 'debugWhatsApp')
+      .addSeparator()
+      .addItem('Install 15-minute refresh', 'installTrigger')
+      .addItem('Remove auto refresh', 'removeTriggers')
+      .addToUi()
+  } catch (e) {
+    Logger.log('onOpen: no UI in this context, menu skipped (' + e + ')')
+  }
+}
+
+/** The UI, or null when there is not one. */
+function ui() {
+  try { return SpreadsheetApp.getUi() } catch (e) { return null }
+}
+
+/** Say something to whoever is looking, or to the log if nobody is. */
+function tell(message) {
+  var u = ui()
+  if (u) u.alert(message); else Logger.log(message)
 }
 
 function setup() {
-  var ui = SpreadsheetApp.getUi()
+  var ui = SpreadsheetApp.getUi()   // interactive by nature; must be run from the sheet
   var props = PropertiesService.getScriptProperties()
 
   var urlAnswer = ui.prompt(
@@ -201,6 +227,8 @@ function refreshAll() {
 
 function buildSummary(ss, s, stamp) {
   ss = ss || book()
+  s = s || fetchPart('summary').summary
+  stamp = stamp || new Date()
   var sh = resetSheet(ss, TAB.summary)
 
   var openRate = pct(s.opened, s.links_sent)
@@ -263,6 +291,7 @@ function buildSummary(ss, s, stamp) {
 
 function buildFunnel(ss, funnel) {
   ss = ss || book()
+  funnel = funnel || fetchPart('funnel').funnel
   var sh = resetSheet(ss, TAB.funnel)
 
   var header = ['Stage', 'Leads', '% of those who opened', '% of previous step',
@@ -322,6 +351,7 @@ function buildFunnel(ss, funnel) {
  */
 function buildStudents(ss, leads) {
   ss = ss || book()
+  leads = leads || fetchPart('leads').leads
   var sh = resetSheet(ss, TAB.students)
 
   var header = ['Student', 'Email', 'Phone', 'Cohort', 'Link issued', 'Opened',
@@ -374,6 +404,7 @@ function buildStudents(ss, leads) {
 
 function buildCohorts(ss, cohorts) {
   ss = ss || book()
+  cohorts = cohorts || fetchPart('cohorts').cohorts
   var sh = resetSheet(ss, TAB.cohorts)
 
   var header = ['Cohort', 'Leads', 'Links issued', 'Opened', 'Started',
@@ -455,12 +486,13 @@ function buildDelivery(ss) {
 
 function buildAnswers(ss, answers) {
   ss = ss || book()
+  answers = answers || fetchPart('answers').answers
   var sh = resetSheet(ss, TAB.answers)
 
   var header = ['Student', 'Email', 'Phone', 'Cohort', 'Q#', 'Question',
                 'Length', 'Recorded at', 'Video', 'Transcript']
   var rows = []
-  for (var i = 0; i < answers.length; i++) {
+  for (var i = 0; i < (answers || []).length; i++) {
     var a = answers[i]
     rows.push([
       a.lead_name, a.lead_email, a.phone10 || '', labelCohort(a.cohort || a.source),
@@ -492,6 +524,7 @@ function buildAnswers(ss, answers) {
 
 function buildEvents(ss, events) {
   ss = ss || book()
+  events = events || fetchPart('events').events
   var sh = resetSheet(ss, TAB.events)
 
   var header = ['When (IST)', 'Email', 'Cohort', 'Event', 'Q#', 'Detail']
@@ -526,12 +559,14 @@ function buildEvents(ss, events) {
  */
 function buildMaster(ss, leads, answers) {
   ss = ss || book()
+  leads = leads || fetchPart('leads').leads
+  answers = answers || fetchPart('answers').answers
   var sh = resetSheet(ss, TAB.master)
 
   // Answers keyed by attempt, so each student's videos land in Q1..Qn columns.
   var byAttempt = {}
   var maxQ = 0
-  for (var i = 0; i < answers.length; i++) {
+  for (var i = 0; i < (answers || []).length; i++) {
     var a = answers[i]
     if (!a.attempt_id) continue
     if (!byAttempt[a.attempt_id]) byAttempt[a.attempt_id] = {}
@@ -561,7 +596,7 @@ function buildMaster(ss, leads, answers) {
   var tick = function (v) { return v ? '✓' : '' }
   var rows = []
 
-  for (var j = 0; j < leads.length; j++) {
+  for (var j = 0; j < (leads || []).length; j++) {
     var d = leads[j]
     var row = [
       d.name, d.phone10 || '', d.email || '', labelCohort(d.cohort || d.source),

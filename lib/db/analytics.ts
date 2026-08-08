@@ -161,11 +161,16 @@ export interface LeadRow {
 /**
  * One row per lead: where they got to and when they stopped.
  *
+ * The limit is a backstop against a runaway payload, not a page size. It sat at
+ * 5,000 while the table grew to 10,672, which silently truncated the sheet.
+ * Ordering now puts judged, then completed, then opened leads first, so even if
+ * this is ever capped again the rows worth reading survive the cut.
+ *
  * `last_stage` is the whole point. Abandonment is not recorded as an event, it
  * is the absence of the next one, so the last event on an attempt IS the answer
  * to "where did this person drop".
  */
-export async function leadRows(limit = 5000): Promise<LeadRow[]> {
+export async function leadRows(limit = 50000): Promise<LeadRow[]> {
   return await sql`
     select
       l.id as lead_id, l.name, l.email, l.phone10, l.source, l.cohort, l.city,
@@ -189,14 +194,22 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
       coalesce(ev.in_call, false)     as ev_in_call,
       coalesce(ev.mic_missing, false) as ev_mic_missing
     from leads l
+    -- The attempt is found by lead, not by link. Picking the newest link first
+    -- and then its attempt lost two students who were issued a second link
+    -- later: their newer empty link hid the older one they actually answered.
     left join lateral (
-      select * from question_sets where lead_id = l.id
-      order by created_at desc limit 1
-    ) s on true
-    left join lateral (
-      select * from attempts where set_id = s.id
-      order by attempt_number desc limit 1
+      select * from attempts
+      where lead_id = l.id
+      order by (status = 'submitted') desc, started_at desc
+      limit 1
     ) a on true
+    left join lateral (
+      select * from question_sets
+      where lead_id = l.id
+      -- The link behind that attempt when there is one, else the newest.
+      order by (a.set_id is not null and id = a.set_id) desc, created_at desc
+      limit 1
+    ) s on true
     left join lateral (
       select at, meta from attempt_events
       where attempt_id = a.id and event = 'link_opened'
@@ -225,7 +238,15 @@ export async function leadRows(limit = 5000): Promise<LeadRow[]> {
         bool_or(event = 'mic_not_detected') as mic_missing
       from attempt_events where attempt_id = a.id
     ) ev on true
-    order by s.created_at desc nulls last
+    order by
+      -- Interesting first, and this is not cosmetic. Ordering purely by newest
+      -- link put 9,205 leads who never opened anything ahead of every student
+      -- who actually answered, so with any cap at all the intent column read
+      -- empty: the judged students were all below the cut.
+      (a.intent is null),
+      (a.status is distinct from 'submitted'),
+      (a.id is null),
+      s.created_at desc nulls last
     limit ${limit}
   ` as LeadRow[]
 }
