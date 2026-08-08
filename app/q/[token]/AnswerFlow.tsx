@@ -207,7 +207,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   const clipRef = useRef<HTMLVideoElement>(null)
   const camPreviewRef = useRef<HTMLVideoElement>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  // Set when a recording came back implausibly small, so the next question
+  // rebuilds the capture stream instead of reusing one that is not producing.
+  const forceReacquireRef = useRef(false)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const elapsedRef = useRef(0)
   const presignRef = useRef<{ uploadUrl: string; finalUrl: string } | null>(null)
@@ -304,16 +307,31 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
    *
    * Returns true if we have something to record with.
    */
-  async function ensureMedia(): Promise<boolean> {
-    if (stream) return true
+  async function ensureMedia(force = false): Promise<MediaStream | null> {
+    // Returns the stream rather than a boolean because setStream is a state
+    // update: a caller that re-acquires and then records in the same tick would
+    // otherwise still be holding the dead one.
+    if (stream && !force) return stream
+
+    // A MediaStream object outlives its tracks. When Android reclaims the
+    // camera (the tab is backgrounded, a call arrives, another app grabs it)
+    // every track flips to 'ended' and stays there, but `stream` is still a
+    // perfectly good object, so the old `if (stream) return true` handed back a
+    // corpse. MediaRecorder then recorded it happily and produced almost no
+    // data while the wall-clock timer kept counting, which is how a 3 second
+    // answer was stored as 23 seconds. Forced re-acquisition is the recovery.
+    if (force && stream) {
+      stream.getTracks().forEach(t => t.stop())
+    }
     setCamError('')
     track('camera_requested')
 
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       setStream(s)
+      streamRef.current = s
       track('camera_granted')
-      return true
+      return s
     } catch (e: unknown) {
       const name = (e as Error)?.name ?? 'unknown'
       track('camera_denied', { meta: { reason: name } })
@@ -322,9 +340,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true })
         setStream(s)
+        streamRef.current = s
         setAudioOnly(true)
         track('camera_granted', { meta: { audioOnly: true, cameraReason: name } })
-        return true
+        return s
       } catch (e2: unknown) {
         const n2 = (e2 as Error)?.name ?? 'unknown'
         track('camera_denied', { meta: { reason: n2, stage: 'audio_fallback' } })
@@ -335,7 +354,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
             ? 'Your browser is blocking the microphone for this page. Tap the lock or ⓘ icon next to the web address, allow Microphone, then reload.'
             : `Could not reach your microphone (${n2}). Please check no other app is using it, then reload.`,
         )
-        return false
+        return null
       }
     }
   }
@@ -385,12 +404,30 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     setRecording(false)
   }, [])
 
-  function startRec() {
-    if (!stream || !question) return
+  /** Are all of this stream's tracks still actually producing? */
+  function streamIsLive(s: MediaStream | null): boolean {
+    if (!s) return false
+    const tracks = s.getTracks()
+    return tracks.length > 0 && tracks.every(t => t.readyState === 'live')
+  }
+
+  async function startRec() {
+    if (!question) return
     const questionId = question.questionId
     const maxSec = question.durationSec
 
-    chunksRef.current = []
+    // Recording onto ended tracks is the bug that stored a 3 second answer as
+    // 23 seconds: MediaRecorder accepts a dead stream without complaint and
+    // simply emits nothing. One student's session decayed Q1 good, Q2 3s, Q3
+    // 2s, Q4 0.1s, Q5 zero bytes, because nothing ever re-acquired the camera.
+    let live = streamRef.current ?? stream
+    if (!streamIsLive(live) || forceReacquireRef.current) {
+      forceReacquireRef.current = false
+      track('camera_recovered', { questionId, position: idx + 1 })
+      live = await ensureMedia(true)
+      if (!live) return
+    }
+
     presignRef.current = null
     fetch('/api/upload/presign', {
       method: 'POST',
@@ -398,13 +435,21 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       body: JSON.stringify({ attemptId, questionId }),
     }).then(r => r.json()).then(d => { presignRef.current = d }).catch(() => {})
 
-    const recorder = new MediaRecorder(stream, {
+    // Per-recording, not a shared ref. The old code reset chunksRef.current in
+    // startRec while the previous recorder's onstop could still be pending, so
+    // auto-record on the next question could empty the array the previous
+    // answer was about to be built from.
+    const chunks: Blob[] = []
+    // Declared before the recorder because onstop closes over it.
+    let secs = 0
+
+    const recorder = new MediaRecorder(live, {
       videoBitsPerSecond: 400_000,
       audioBitsPerSecond: 48_000,
     })
-    recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data) }
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data) }
     recorder.onstop = () => {
-      pendingUploads.current.set(questionId, handleRecordingStop(questionId))
+      pendingUploads.current.set(questionId, handleRecordingStop(questionId, chunks, secs))
     }
     recorder.start(5000)
     recorderRef.current = recorder
@@ -413,7 +458,6 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     setElapsed(0)
     elapsedRef.current = 0
 
-    let secs = 0
     tickRef.current = setInterval(() => {
       secs++
       elapsedRef.current = secs
@@ -422,11 +466,43 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
     }, 1000)
   }
 
-  async function handleRecordingStop(questionId: string) {
-    const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+  async function handleRecordingStop(questionId: string, chunks: Blob[], elapsedAtStop: number) {
+    const blob = new Blob(chunks, { type: 'video/webm' })
     const url = URL.createObjectURL(blob)
-    const durationSec = elapsedRef.current
     const position = questions.findIndex(q => q.questionId === questionId) + 1
+
+    // The wall-clock timer is how long the student sat there, which is not the
+    // same as how much was captured, and storing the first as if it were the
+    // second is what made the sheet unreadable. Trust the smaller of the two so
+    // a thin file reports its honest length rather than a flattering one.
+    //
+    // The expected rate follows the bitrates set on the recorder: video plus
+    // audio is ~55 KB/s, audio alone ~6 KB/s. A flat threshold would flag every
+    // audio-only answer as broken, so both are derived from the same figure.
+    // Two thresholds, because they answer different questions. Encoders vary a
+    // lot: one student's VP8 recorded a perfectly good answer at 26 KB/s where
+    // another's H.264 used 86 KB/s for the same thing. So "suspicious" only
+    // flags for investigation, while "rewrite the duration" needs the file to
+    // be so far below any plausible encode that nothing was captured at all.
+    const expectedKbPerSec = audioOnly ? 6 : 55
+    const kbPerSec = elapsedAtStop > 0 ? blob.size / 1000 / elapsedAtStop : 0
+    const thin = elapsedAtStop >= 2 && kbPerSec < expectedKbPerSec * 0.15
+    const empty = elapsedAtStop >= 2 && kbPerSec < expectedKbPerSec * 0.05
+    const durationSec = empty
+      ? Math.max(0, Math.round((blob.size / 1000) / expectedKbPerSec))
+      : elapsedAtStop
+
+    if (thin) {
+      track('recording_thin', {
+        questionId, position,
+        meta: { elapsedSec: elapsedAtStop, bytes: blob.size, kbPerSec: Math.round(kbPerSec * 10) / 10, audioOnly, empty },
+      })
+      // Whatever killed the capture is still broken for the next question. The
+      // tracks can read 'live' while producing nothing, so liveness alone would
+      // not catch it. Flag it and let startRec rebuild, rather than calling
+      // getUserMedia here and racing the next question's own re-acquire.
+      forceReacquireRef.current = true
+    }
 
     track('recording_stopped', {
       questionId, position,

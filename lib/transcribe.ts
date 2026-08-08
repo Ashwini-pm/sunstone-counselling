@@ -97,10 +97,16 @@ async function callGemini(bytes: ArrayBuffer, mime: string, durationSec: number)
       generationConfig: {
         // Transcription is not a creative task; drift here is invention.
         temperature: 0,
-        // Scaled to the clip. A flat 2,048 gave a three second answer room to
-        // produce 1,364 words. Roughly 4 words a second at ~2 tokens a word,
-        // with headroom, and a floor so a short clip is never clipped mid-word.
-        maxOutputTokens: Math.min(2048, Math.max(120, Math.ceil(durationSec * 12))),
+        // Thinking off. This is the important line. On 2.5 the thinking tokens
+        // are billed against maxOutputTokens, so a tight cap was spent on
+        // reasoning before any transcript was emitted and answers came back as
+        // "Okay, so the first" and "Mera interest for". There is nothing to
+        // reason about in reading speech aloud.
+        thinkingConfig: { thinkingBudget: 0 },
+        // Scaled to the clip, with real headroom now that the cap is no longer
+        // being used as the loop guard: looksLikeLoop below does that job, and
+        // does it on the actual text rather than by starving the model.
+        maxOutputTokens: Math.min(4096, Math.max(400, Math.ceil(durationSec * 20))),
       },
     }),
   })
@@ -120,6 +126,13 @@ async function callGemini(bytes: ArrayBuffer, mime: string, durationSec: number)
   // would look like a silent recording rather than a failed call.
   if (!text && cand?.finishReason && cand.finishReason !== 'STOP') {
     throw new Error(`gemini returned nothing (${cand.finishReason})`)
+  }
+
+  // A cut-off transcript is worse than none: it reads as a complete answer and
+  // the intent judgement then scores a student on half a sentence. Fail so it
+  // retries rather than storing it.
+  if (cand?.finishReason === 'MAX_TOKENS') {
+    throw new Error(`transcript hit the output limit after ${text.split(/\s+/).length} words`)
   }
   return text
 }

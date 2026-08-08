@@ -31,6 +31,11 @@ export const EVENTS = [
   'camera_granted',
   'camera_denied',
   'mic_not_detected',
+  // The capture stream had ended and was rebuilt before recording.
+  'camera_recovered',
+  // A recording produced far too few bytes for the time it ran, meaning the
+  // camera or mic had stopped producing while the timer kept counting.
+  'recording_thin',
   'wizard_completed',
   'question_started',
   'question_heard',
