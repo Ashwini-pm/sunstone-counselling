@@ -405,7 +405,7 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
   }, [])
 
   /** Are all of this stream's tracks still actually producing? */
-  function streamIsLive(s: MediaStream | null): boolean {
+  function streamIsLive(s: MediaStream | null): s is MediaStream {
     if (!s) return false
     const tracks = s.getTracks()
     return tracks.length > 0 && tracks.every(t => t.readyState === 'live')
@@ -425,8 +425,10 @@ export default function AnswerFlow({ leadName, attemptId }: Props) {
       forceReacquireRef.current = false
       track('camera_recovered', { questionId, position: idx + 1 })
       live = await ensureMedia(true)
-      if (!live) return
     }
+    // Not folded into the branch above: forceReacquireRef can send us down that
+    // path with an already-live stream, so narrowing has to happen out here.
+    if (!live) return
 
     presignRef.current = null
     fetch('/api/upload/presign', {
