@@ -2,6 +2,13 @@ import { currentLead } from '@/lib/leadSession'
 import { ownedAttempt, submitAttempt } from '@/lib/db/leadAccess'
 import { logEvent } from '@/lib/events'
 import { sendCompletionEmail } from '@/lib/email'
+import { transcribeAttempt } from '@/lib/transcribe'
+import { judgeIntent } from '@/lib/intent'
+import { after } from 'next/server'
+
+// Transcription runs after the response, but still inside this invocation, so
+// the function must be allowed to live long enough to finish it.
+export const maxDuration = 120
 
 export async function POST(request: Request) {
   const lead = await currentLead()
@@ -33,6 +40,21 @@ export async function POST(request: Request) {
     // in the database first, so the cost is a second or two on a request the
     // student is not waiting on.
     await sendCompletionEmail(attemptId)
+
+    // Transcribe and judge after the response has gone back, so the student
+    // waits on none of it.
+    //
+    // This used to depend entirely on the analytics sheet's trigger calling the
+    // sweeper, since Vercel's Hobby plan rejects any cron more frequent than
+    // daily. When that trigger stopped running, 47 recordings sat untranscribed
+    // for a day with nothing to notice or retry them. Work that must happen
+    // should not depend on a spreadsheet being open.
+    //
+    // The sweeper stays as the safety net for anything this misses.
+    after(async () => {
+      await transcribeAttempt(attemptId)
+      await judgeIntent(attemptId)
+    })
   }
 
   return Response.json({ ok: true })

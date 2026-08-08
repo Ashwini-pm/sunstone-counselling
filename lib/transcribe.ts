@@ -167,3 +167,26 @@ export async function transcribeRecording(recordingId: string): Promise<void> {
     } catch { /* nothing sensible left to do */ }
   }
 }
+
+/**
+ * Transcribe everything a single attempt recorded.
+ *
+ * Used the moment a student submits, so their answers are readable within a
+ * minute instead of whenever a sweeper next runs. Sequential on purpose: a
+ * handful of clips against a rate limit is not worth parallelising, and a
+ * burst that trips the limit burns a retry on every one of them.
+ */
+export async function transcribeAttempt(attemptId: string): Promise<void> {
+  try {
+    const pending = await sql`
+      select id from recordings
+      where attempt_id = ${attemptId}
+        and transcript_status in ('pending', 'failed')
+        and transcript_attempts < 3
+      order by uploaded_at asc
+    ` as { id: string }[]
+    for (const r of pending) await transcribeRecording(r.id)
+  } catch (err) {
+    console.error('[transcribe] attempt sweep failed', attemptId, err)
+  }
+}

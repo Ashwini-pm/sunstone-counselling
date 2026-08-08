@@ -3,6 +3,7 @@
 //   node scripts/export-cohort.mjs                     list the cohorts
 //   node scripts/export-cohort.mjs 1                   export cohort 1
 //   node scripts/export-cohort.mjs 1 --include-done    keep the completed too
+//   node scripts/export-cohort.mjs 1 --not-started     only those yet to answer
 //   node scripts/export-cohort.mjs 1 --out ~/Desktop/x.csv
 //
 // Carries each lead's own counselling link, so the reminder can point straight
@@ -28,6 +29,10 @@ for (const line of readFileSync(resolve(ROOT, '.env.local'), 'utf8').split('\n')
 const sql = neon(env.DATABASE_URL)
 const args = process.argv.slice(2)
 const includeDone = args.includes('--include-done')
+// "Not started" means no answer was ever recorded: never opened, or opened and
+// left without speaking. Someone part way through has started and is a
+// different conversation, so they are excluded too.
+const notStarted = args.includes('--not-started')
 const outArg = args.includes('--out') ? args[args.indexOf('--out') + 1] : null
 const baseArg = args.includes('--base') ? args[args.indexOf('--base') + 1] : null
 const which = args.find(a => !a.startsWith('--') && a !== outArg && a !== baseArg)
@@ -79,6 +84,7 @@ const rows = await sql`
   ) last_ev on true
   where l.cohort = ${target.cohort}
     and (${includeDone} or a.status is distinct from 'submitted')
+    and (not ${notStarted} or coalesce(r.cnt, 0) = 0)
   order by
     -- Warmest first: people who started and stopped are the likeliest to
     -- finish on a nudge, and they deserve different wording from someone who
@@ -122,7 +128,7 @@ const done = await sql`
   join attempts a on a.set_id = s.id
   where l.cohort = ${target.cohort} and a.status = 'submitted'`
 
-console.log(`\n  ${rows.length} to remind`)
+console.log(`\n  ${rows.length} to remind${notStarted ? ' (not started only)' : ''}`)
 console.log(`    never opened      ${notOpened}`)
 console.log(`    started, unfinished ${started}`)
 console.log(`  ${done[0].n} completed${includeDone ? ' (included)' : ' (excluded)'}`)
